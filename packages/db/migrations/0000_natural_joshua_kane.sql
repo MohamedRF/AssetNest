@@ -155,6 +155,8 @@ CREATE TABLE "users" (
 	"password_hash" text,
 	"auth_subject" text,
 	"status" text DEFAULT 'active' NOT NULL,
+	"failed_login_attempts" integer DEFAULT 0 NOT NULL,
+	"locked_until" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

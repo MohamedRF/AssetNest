@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../lib/auth';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -12,6 +13,22 @@ function getStoredCollapsed(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Gates every protected route: splash while probing, redirect to /login when signed out. */
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        Checking your session…
+      </div>
+    );
+  }
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
 }
 
 export function AppLayout() {
@@ -52,37 +69,39 @@ export function AppLayout() {
   const openDrawer = useCallback(() => setDrawerOpen(true), []);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"
-      >
-        Skip to main content
-      </a>
+    <RequireAuth>
+      <div className="min-h-screen bg-background text-foreground">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"
+        >
+          Skip to main content
+        </a>
 
-      <Sidebar
-        collapsed={collapsed}
-        onToggleCollapsed={toggleCollapsed}
-        drawerOpen={drawerOpen}
-        onCloseDrawer={closeDrawer}
-      />
+        <Sidebar
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+          drawerOpen={drawerOpen}
+          onCloseDrawer={closeDrawer}
+        />
 
-      <div
-        className={cn(
-          'flex min-h-screen flex-col transition-[padding] duration-200',
-          collapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]',
-        )}
-      >
-        <Topbar onOpenDrawer={openDrawer} />
-        <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto w-full max-w-6xl">
-            <Outlet />
-          </div>
-        </main>
-        <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground sm:px-6">
-          AssetNest preview — workspace data is not connected yet; shown content is empty on purpose.
-        </footer>
+        <div
+          className={cn(
+            'flex min-h-screen flex-col transition-[padding] duration-200',
+            collapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]',
+          )}
+        >
+          <Topbar onOpenDrawer={openDrawer} />
+          <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-6xl">
+              <Outlet />
+            </div>
+          </main>
+          <footer className="border-t border-border px-4 py-4 text-center text-xs text-muted-foreground sm:px-6">
+            AssetNest — self-hosted asset management. All data stays yours.
+          </footer>
+        </div>
       </div>
-    </div>
+    </RequireAuth>
   );
 }

@@ -38,6 +38,8 @@ export const users = pgTable(
     passwordHash: text('password_hash'),
     authSubject: text('auth_subject'),
     status: text('status').notNull().default('active'),
+    failedLoginAttempts: integer('failed_login_attempts').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [uniqueIndex('users_email_unique').on(sql`lower(${t.email})`)],
@@ -113,7 +115,6 @@ export const sessions = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     userAgent: text('user_agent'),
     ip: text('ip'),
-    csrfHash: text('csrf_hash'),
   },
   (t) => [
     uniqueIndex('sessions_token_hash_unique').on(t.tokenHash),

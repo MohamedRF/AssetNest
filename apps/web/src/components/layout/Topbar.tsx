@@ -14,48 +14,24 @@ import {
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '../ui/badge';
+import { useAuth } from '../../lib/auth';
 
-const WORKSPACE_MODE_KEY = 'assetnest-workspace-mode';
+const SELECTED_WORKSPACE_KEY = 'assetnest-workspace-id';
 
-type WorkspaceMode = 'office' | 'home';
-
-function getStoredMode(): WorkspaceMode {
-  try {
-    return window.localStorage.getItem(WORKSPACE_MODE_KEY) === 'home' ? 'home' : 'office';
-  } catch {
-    return 'office';
-  }
-}
-
-interface WorkspaceOption {
-  mode: WorkspaceMode;
-  name: string;
-  preset: string;
-  description: string;
-}
-
-const WORKSPACE_OPTIONS: readonly WorkspaceOption[] = [
-  {
-    mode: 'office',
-    name: 'Demo Office',
-    preset: 'Office',
-    description: 'Assets, audits, custody and integrations',
-  },
-  {
-    mode: 'home',
-    name: 'Demo Home',
-    preset: 'Home',
-    description: 'Rooms, appliances and recurring service',
-  },
-] as const;
-
-/** Demo workspace switcher — presets are a preview until the API ships (Phase 1). */
+/** Workspace switcher backed by the signed-in session; selection persists as UI state only. */
 function WorkspaceSwitcher() {
-  const [mode, setMode] = useState<WorkspaceMode>(getStoredMode);
+  const { workspaces } = useAuth();
   const [open, setOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(SELECTED_WORKSPACE_KEY);
+    } catch {
+      return null;
+    }
+  });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const active = WORKSPACE_OPTIONS.find((option) => option.mode === mode) ?? WORKSPACE_OPTIONS[0]!;
+  const active = workspaces.find((ws) => ws.id === selectedId) ?? workspaces[0];
 
   useEffect(() => {
     if (!open) return;
@@ -73,72 +49,92 @@ function WorkspaceSwitcher() {
     };
   }, [open]);
 
-  const select = (next: WorkspaceMode) => {
-    setMode(next);
+  const select = (id: string) => {
+    setSelectedId(id);
     try {
-      window.localStorage.setItem(WORKSPACE_MODE_KEY, next);
-    } catch (error) {
-      console.warn('AssetNest: unable to persist workspace mode preview', error);
+      window.localStorage.setItem(SELECTED_WORKSPACE_KEY, id);
+    } catch {
+      // Storage unavailable — selection stays in-memory for this session.
     }
     setOpen(false);
   };
+
+  if (!active) {
+    return (
+      <Link
+        to="/settings"
+        className="flex h-10 items-center gap-2 rounded-md border border-dashed border-border px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+      >
+        <Plus aria-hidden="true" className="h-4 w-4" />
+        <span className="hidden sm:inline">Set up a workspace</span>
+      </Link>
+    );
+  }
 
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Workspace: ${active.name} (${active.preset} mode). Switch workspace.`}
+        onClick={() => workspaces.length > 1 && setOpen((value) => !value)}
+        aria-haspopup={workspaces.length > 1 ? 'menu' : undefined}
+        aria-expanded={workspaces.length > 1 ? open : undefined}
+        aria-label={`Workspace: ${active.name} (${active.mode} mode)${workspaces.length > 1 ? '. Switch workspace.' : ''}`}
         className="flex h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground hover:bg-muted"
       >
-        <Building2 aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
+        {active.mode === 'home' ? (
+          <Home aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
+        ) : (
+          <Building2 aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
+        )}
         <span className="hidden flex-col items-start leading-tight sm:flex">
           <span className="max-w-[10rem] truncate">{active.name}</span>
-          <span className="text-[11px] font-normal text-muted-foreground">{active.preset} mode · Demo</span>
+          <span className="text-[11px] font-normal capitalize text-muted-foreground">
+            {active.mode} mode · {active.role}
+          </span>
         </span>
-        <ChevronsUpDown aria-hidden="true" className="hidden h-4 w-4 text-muted-foreground sm:block" />
+        {workspaces.length > 1 && (
+          <ChevronsUpDown aria-hidden="true" className="hidden h-4 w-4 text-muted-foreground sm:block" />
+        )}
       </button>
 
-      {open && (
+      {open && workspaces.length > 1 && (
         <div
           role="menu"
-          aria-label="Choose workspace preview"
+          aria-label="Choose workspace"
           className="absolute left-0 top-full z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-surface p-2 shadow-lg"
         >
-          {WORKSPACE_OPTIONS.map((option) => (
+          {workspaces.map((ws) => (
             <button
-              key={option.mode}
+              key={ws.id}
               type="button"
               role="menuitemradio"
-              aria-checked={option.mode === mode}
-              onClick={() => select(option.mode)}
+              aria-checked={ws.id === active.id}
+              onClick={() => select(ws.id)}
               className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-muted"
             >
-              {option.mode === 'home' ? (
+              {ws.mode === 'home' ? (
                 <Home aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               ) : (
                 <Building2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               )}
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">{option.name}</span>
-                  <Badge variant="outline" className="text-[10px]">
-                    {option.preset}
+                  <span className="truncate text-sm font-medium text-foreground">{ws.name}</span>
+                  <Badge variant="outline" className="text-[10px] capitalize">
+                    {ws.mode}
                   </Badge>
                 </span>
-                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                  {option.description}
+                <span className="mt-0.5 block text-xs capitalize leading-5 text-muted-foreground">
+                  Role: {ws.role}
                 </span>
               </span>
-              {option.mode === mode && (
+              {ws.id === active.id && (
                 <Check aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-accent" />
               )}
             </button>
           ))}
           <p className="border-t border-border px-3 pb-1.5 pt-2 text-[11px] leading-4 text-muted-foreground">
-            Workspace switching and presets are a preview. Real workspaces arrive with the API (Phase 1).
+            Workspace switching is a UI preference. The server authorizes every request against your membership.
           </p>
         </div>
       )}
@@ -259,8 +255,16 @@ function RemindersBell() {
   );
 }
 
-/** User menu. Demo account — real sessions arrive with the API (Phase 1). */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '');
+  return letters.join('') || '?';
+}
+
+/** User menu — reflects the signed-in account; sign out revokes the session server-side. */
 function UserMenu() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -280,6 +284,16 @@ function UserMenu() {
     };
   }, [open]);
 
+  const displayName = user?.displayName ?? 'Account';
+  const email = user?.email ?? '';
+  const initials = initialsOf(displayName);
+
+  const signOut = async () => {
+    setOpen(false);
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -287,16 +301,18 @@ function UserMenu() {
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Account menu — Demo User"
+        aria-label={`Account menu — ${displayName}`}
         className="flex h-10 items-center gap-2 rounded-md px-1.5 hover:bg-muted"
       >
         <span
           aria-hidden="true"
           className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-subtle text-xs font-bold text-accent-subtle-foreground"
         >
-          DU
+          {initials}
         </span>
-        <span className="hidden text-sm font-medium text-foreground md:block">Demo User</span>
+        <span className="hidden max-w-[10rem] truncate text-sm font-medium text-foreground md:block">
+          {displayName}
+        </span>
         <ChevronDown aria-hidden="true" className="hidden h-4 w-4 text-muted-foreground md:block" />
       </button>
       {open && (
@@ -306,8 +322,8 @@ function UserMenu() {
           className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-border bg-surface p-2 shadow-lg"
         >
           <div className="px-3 py-2">
-            <p className="text-sm font-semibold text-foreground">Demo User</p>
-            <p className="text-xs leading-5 text-muted-foreground">demo@example.com · Demo account</p>
+            <p className="text-sm font-semibold text-foreground">{displayName}</p>
+            <p className="text-xs leading-5 text-muted-foreground">{email}</p>
           </div>
           <div className="my-1 border-t border-border" />
           <Link
@@ -319,15 +335,15 @@ function UserMenu() {
             <Settings aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             Settings
           </Link>
-          <Link
+          <button
+            type="button"
             role="menuitem"
-            to="/login"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted"
+            onClick={() => void signOut()}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm text-foreground hover:bg-muted"
           >
             <LogOut aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
             Sign out
-          </Link>
+          </button>
         </div>
       )}
     </div>

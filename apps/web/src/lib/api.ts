@@ -61,6 +61,21 @@ export function setUnauthorizedHandler(handler?: UnauthorizedHandler): void {
   unauthorizedHandler = handler ?? defaultUnauthorizedHandler;
 }
 
+/**
+ * Session CSRF token (synchronizer pattern). Issued by /auth/login,
+ * /auth/register and /auth/me; kept in memory only — never persisted.
+ * Attached automatically as `x-csrf-token` on mutating requests.
+ */
+let csrfToken: string | null = null;
+
+export function setCsrfToken(token: string | null): void {
+  csrfToken = token;
+}
+
+export function getCsrfToken(): string | null {
+  return csrfToken;
+}
+
 const BASE_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api/v1';
 
 export function getApiBaseUrl(): string {
@@ -124,15 +139,21 @@ interface RequestOptions {
 async function request<T>(path: string, options: RequestOptions): Promise<T> {
   const { method, body, signal } = options;
   const hasBody = body !== undefined;
+  // The request type models GET plus mutating verbs; every non-GET needs CSRF.
+  const isMutating = method !== 'GET';
 
   let response: Response;
   try {
+    const headers: Record<string, string> = hasBody
+      ? { 'Content-Type': JSON_CONTENT_TYPE, Accept: JSON_CONTENT_TYPE }
+      : { Accept: JSON_CONTENT_TYPE };
+    if (isMutating && csrfToken) {
+      headers['x-csrf-token'] = csrfToken;
+    }
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       credentials: 'include',
-      headers: hasBody
-        ? { 'Content-Type': JSON_CONTENT_TYPE, Accept: JSON_CONTENT_TYPE }
-        : { Accept: JSON_CONTENT_TYPE },
+      headers,
       body: hasBody ? JSON.stringify(body) : undefined,
       ...(signal !== undefined ? { signal } : {}),
     });
@@ -148,6 +169,7 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
   }
 
   if (response.status === 401) {
+    setCsrfToken(null);
     unauthorizedHandler();
     throw await toApiError(response);
   }

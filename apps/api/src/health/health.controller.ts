@@ -2,6 +2,7 @@ import { Controller, Get, HttpCode, Inject, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import type { Database } from '@assetnest/db';
 import { DATABASE } from '../common/tokens.js';
+import { Public } from '../common/public.decorator.js';
 
 const DB_CHECK_TIMEOUT_MS = 2000;
 
@@ -10,6 +11,7 @@ export interface ReadyBody {
   checks: { database: 'up' | 'down' };
 }
 
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(@Inject(DATABASE) private readonly db: Database) {}

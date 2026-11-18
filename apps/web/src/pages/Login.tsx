@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { CircleAlert, Loader2, ServerOff } from 'lucide-react';
 import { z } from 'zod';
 import { LogoMark } from '../components/layout/Sidebar';
@@ -7,7 +7,8 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { api, isApiError } from '../lib/api';
+import { isApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
 
 const loginSchema = z.object({
   email: z
@@ -23,12 +24,24 @@ type FieldErrors = Partial<Record<LoginField, string>>;
 
 export function Login() {
   const navigate = useNavigate();
+  const { user, isLoading, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [apiUnavailable, setApiUnavailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Already signed in → go straight to the app.
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate('/', { replace: true });
+    }
+  }, [isLoading, user, navigate]);
+
+  if (!isLoading && user) {
+    return <Navigate to="/" replace />;
+  }
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -51,7 +64,7 @@ export function Login() {
     setSubmitting(true);
 
     try {
-      await api.post('/auth/login', parsed.data);
+      await login(parsed.data.email, parsed.data.password);
       navigate('/', { replace: true });
     } catch (error) {
       if (isApiError(error) && error.status === 401) {
@@ -104,8 +117,8 @@ export function Login() {
               >
                 <ServerOff aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  Could not reach the AssetNest API. The backend is not connected yet — this build ships the
-                  web UI shell, and sign-in will work once the API server is running on port 3000 (Phase 1).
+                  Could not reach the AssetNest API. Make sure the API server is running (port 3000 by default)
+                  and try again.
                 </span>
               </div>
             )}
@@ -163,8 +176,7 @@ export function Login() {
       </Card>
 
       <p className="mt-6 max-w-md text-center text-xs leading-5 text-muted-foreground">
-        AssetNest preview build — no workspace data is connected. All accounts are processed by the API;
-        nothing is stored locally.
+        Sessions are stored in an HttpOnly cookie on your own infrastructure. Nothing is stored on this device.
       </p>
     </main>
   );

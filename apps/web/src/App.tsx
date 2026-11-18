@@ -18,6 +18,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      {/* AppLayout gates all nested routes behind the session probe. */}
       <Route element={<AppLayout />}>
         <Route index element={<Dashboard />} />
         <Route path="assets" element={<AssetsList />} />
