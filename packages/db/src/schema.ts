@@ -123,6 +123,37 @@ export const sessions = pgTable(
   ],
 );
 
+// ─── Migration 0004 — workspace invites (single-use, hashed at rest) ─────────
+
+export const workspaceInvites = pgTable(
+  'workspace_invites',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(), // stored lower-cased
+    roleKey: text('role_key')
+      .notNull()
+      .references(() => roles.key),
+    tokenHash: text('token_hash').notNull(),
+    status: text('status').notNull().default('pending'), // 'pending' | 'accepted' | 'revoked'
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamps.createdAt,
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('workspace_invites_token_hash_unique').on(t.tokenHash),
+    // At most one pending invite per email per workspace
+    uniqueIndex('workspace_invites_pending_unique')
+      .on(t.workspaceId, sql`lower(${t.email})`)
+      .where(sql`${t.status} = 'pending'`),
+    index('workspace_invites_workspace_idx').on(t.workspaceId),
+  ],
+);
+
 export const auditLog = pgTable(
   'audit_log',
   {

@@ -5,7 +5,10 @@ import type { AuthContext, RequestWithAuth } from './session-auth.guard.js';
 export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionContext) => {
   const request = ctx.switchToHttp().getRequest<RequestWithAuth>();
   if (!request.auth) {
-    throw new HttpException({ message: 'Authentication required', code: 'SESSION_REQUIRED' }, HttpStatus.UNAUTHORIZED);
+    throw new HttpException(
+      { message: 'Authentication required', code: 'SESSION_REQUIRED' },
+      HttpStatus.UNAUTHORIZED,
+    );
   }
   return request.auth.user;
 });
@@ -14,7 +17,10 @@ export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionC
 export const CurrentAuth = createParamDecorator((_data: unknown, ctx: ExecutionContext): AuthContext => {
   const request = ctx.switchToHttp().getRequest<RequestWithAuth>();
   if (!request.auth) {
-    throw new HttpException({ message: 'Authentication required', code: 'SESSION_REQUIRED' }, HttpStatus.UNAUTHORIZED);
+    throw new HttpException(
+      { message: 'Authentication required', code: 'SESSION_REQUIRED' },
+      HttpStatus.UNAUTHORIZED,
+    );
   }
   return request.auth;
 });

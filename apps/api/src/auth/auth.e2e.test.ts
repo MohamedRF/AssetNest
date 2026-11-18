@@ -186,8 +186,9 @@ describe('auth bootstrap and sessions (e2e)', () => {
 
     const res = await request(app.getHttpServer()).get('/api/v1/auth/sessions').set('Cookie', cookie);
     expect(res.status).toBe(200);
-    const sessionsList = (res.body as { sessions: Array<{ id: string; isCurrent: boolean; tokenHash?: never }> })
-      .sessions;
+    const sessionsList = (
+      res.body as { sessions: Array<{ id: string; isCurrent: boolean; tokenHash?: never }> }
+    ).sessions;
     expect(sessionsList.length).toBeGreaterThanOrEqual(1);
     expect(sessionsList.some((s) => s.isCurrent)).toBe(true);
     expect(JSON.stringify(sessionsList)).not.toContain('tokenHash');
@@ -213,7 +214,9 @@ describe('auth bootstrap and sessions (e2e)', () => {
     expect((locked.body as ProblemBody).code).toBe('ACCOUNT_LOCKED');
 
     // Lockout expires (simulate the passage of time) — then the correct password works again.
-    await testDb.execute(sql`update users set locked_until = now() - interval '1 minute' where email = 'lockme@example.com'`);
+    await testDb.execute(
+      sql`update users set locked_until = now() - interval '1 minute' where email = 'lockme@example.com'`,
+    );
     const allowed = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: 'lockme@example.com', password: 'the-correct-passphrase' });

@@ -7,5 +7,4 @@ export const PERMISSIONS_KEY = 'assetnest:requirePermissions';
  * Enforced by WorkspaceGuard — which also resolves workspace membership —
  * so the decorator is only meaningful on routes with a `:workspaceId` param.
  */
-export const RequirePermissions = (...permissions: Permission[]) =>
-  SetMetadata(PERMISSIONS_KEY, permissions);
+export const RequirePermissions = (...permissions: Permission[]) => SetMetadata(PERMISSIONS_KEY, permissions);

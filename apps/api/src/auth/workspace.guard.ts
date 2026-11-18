@@ -1,4 +1,11 @@
-import { HttpException, HttpStatus, Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { and, eq } from 'drizzle-orm';
 import type { Permission, WorkspaceRole } from '@assetnest/domain';
@@ -21,7 +28,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function notFound(): HttpException {
   // 404 (not 403) for non-members: don't reveal that the workspace exists.
-  return new HttpException({ message: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' }, HttpStatus.NOT_FOUND);
+  return new HttpException(
+    { message: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' },
+    HttpStatus.NOT_FOUND,
+  );
 }
 
 /**

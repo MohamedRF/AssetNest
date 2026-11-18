@@ -10,7 +10,6 @@ import {
   Post,
   Req,
   Res,
-  UsePipes,
 } from '@nestjs/common';
 import type { AppConfig } from '@assetnest/config';
 import type { Request, Response } from 'express';
@@ -18,7 +17,8 @@ import { APP_CONFIG } from '../common/tokens.js';
 import { Public } from '../common/public.decorator.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { deriveCsrfToken } from '../common/csrf.js';
-import { SESSION_COOKIE, SESSION_TTL_SECONDS } from './auth.constants.js';
+import { SESSION_COOKIE } from './auth.constants.js';
+import { sessionCookieOptions, clearSessionCookieOptions } from './session-cookie.js';
 import { loginSchema, registerSchema, type LoginInput, type RegisterInput } from './dto.js';
 import { AuthService } from './auth.service.js';
 import { CurrentAuth, CurrentUser } from './current-user.decorator.js';
@@ -32,34 +32,22 @@ export class AuthController {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
-  private sessionCookieOptions() {
-    return {
-      httpOnly: true,
-      sameSite: 'lax' as const,
-      path: '/',
-      secure: this.config.NODE_ENV === 'production',
-      maxAge: SESSION_TTL_SECONDS * 1000,
-    };
-  }
-
   private setSessionCookie(res: Response, token: string) {
-    res.cookie(SESSION_COOKIE, token, this.sessionCookieOptions());
+    res.cookie(SESSION_COOKIE, token, sessionCookieOptions(this.config));
   }
 
   private clearSessionCookie(res: Response) {
-    res.clearCookie(SESSION_COOKIE, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      secure: this.config.NODE_ENV === 'production',
-    });
+    res.clearCookie(SESSION_COOKIE, clearSessionCookieOptions(this.config));
   }
 
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @UsePipes(new ZodValidationPipe(registerSchema))
-  async register(@Body() body: RegisterInput, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async register(
+    @Body(new ZodValidationPipe(registerSchema)) body: RegisterInput,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.registerBootstrap(body, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],
@@ -71,8 +59,11 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ZodValidationPipe(loginSchema))
-  async login(@Body() body: LoginInput, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body(new ZodValidationPipe(loginSchema)) body: LoginInput,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(body, {
       ip: req.ip,
       userAgent: req.headers['user-agent'],

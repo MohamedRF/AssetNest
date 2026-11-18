@@ -32,6 +32,8 @@ export const configSchema = z.object({
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_URL: z.string().min(1).optional(),
+  /** Max connections in the pg pool. Embedded/socket Postgres (pglite) requires 1. */
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
 
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 bytes of random material'),
   ENCRYPTION_KEY: base64Key32,

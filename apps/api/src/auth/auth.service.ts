@@ -93,7 +93,8 @@ export class AuthService {
       .where(sql`lower(${users.email}) = ${input.email}`)
       .limit(1);
 
-    const isLocked = user?.lockedUntil !== null && user?.lockedUntil !== undefined && user.lockedUntil > new Date();
+    const isLocked =
+      user?.lockedUntil !== null && user?.lockedUntil !== undefined && user.lockedUntil > new Date();
 
     // Constant-ish timing: always run an argon2 verify, even for unknown accounts.
     const hashToVerify = user?.passwordHash ?? DUMMY_HASH;
@@ -121,16 +122,12 @@ export class AuthService {
         .where(eq(users.id, user.id));
     }
 
-    return this.createSession(
-      { id: user.id, email: user.email, displayName: user.displayName },
-      meta,
-    );
+    return this.createSession({ id: user.id, email: user.email, displayName: user.displayName }, meta);
   }
 
   private async registerFailedAttempt(userId: string, currentAttempts: number): Promise<void> {
     const attempts = currentAttempts + 1;
-    const lock =
-      attempts >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : null;
+    const lock = attempts >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : null;
     await this.db
       .update(users)
       .set({ failedLoginAttempts: attempts, ...(lock ? { lockedUntil: lock } : {}) })
@@ -160,6 +157,11 @@ export class AuthService {
       sessionId: inserted?.id ?? '',
       expiresAt,
     };
+  }
+
+  /** Public entry point for trusted flows (e.g. invite acceptance after identity checks). */
+  async createSessionFor(user: PublicUser, meta: RequestMeta): Promise<AuthResult> {
+    return this.createSession(user, meta);
   }
 
   async listWorkspaces(userId: string): Promise<WorkspaceSummary[]> {

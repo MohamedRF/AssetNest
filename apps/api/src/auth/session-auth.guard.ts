@@ -1,4 +1,11 @@
-import { HttpException, HttpStatus, Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  type CanActivate,
+  type ExecutionContext,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../common/public.decorator.js';
@@ -40,11 +47,17 @@ export class SessionGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<RequestWithAuth>();
     const token = parseCookies(request.headers.cookie).get(SESSION_COOKIE);
     if (!token) {
-      throw new HttpException({ message: 'Authentication required', code: 'SESSION_REQUIRED' }, HttpStatus.UNAUTHORIZED);
+      throw new HttpException(
+        { message: 'Authentication required', code: 'SESSION_REQUIRED' },
+        HttpStatus.UNAUTHORIZED,
+      );
     }
     const result = await this.authService.validateSessionToken(token);
     if (!result) {
-      throw new HttpException({ message: 'Session is invalid or expired', code: 'SESSION_INVALID' }, HttpStatus.UNAUTHORIZED);
+      throw new HttpException(
+        { message: 'Session is invalid or expired', code: 'SESSION_INVALID' },
+        HttpStatus.UNAUTHORIZED,
+      );
     }
     request.auth = { user: result.user, sessionId: result.sessionId, sessionToken: result.sessionToken };
     return true;

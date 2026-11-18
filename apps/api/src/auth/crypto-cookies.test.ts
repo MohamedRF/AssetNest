@@ -78,7 +78,9 @@ describe('csrf synchronizer tokens', () => {
     const a = generateToken();
     const b = generateToken();
     expect(deriveCsrfToken(a, secret)).not.toBe(deriveCsrfToken(b, secret));
-    expect(deriveCsrfToken(a, secret)).not.toBe(deriveCsrfToken(a, 'different-secret-that-is-long-enough-000'));
+    expect(deriveCsrfToken(a, secret)).not.toBe(
+      deriveCsrfToken(a, 'different-secret-that-is-long-enough-000'),
+    );
   });
 
   it('validates only the exact derived token', () => {

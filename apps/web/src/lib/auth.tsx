@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, setCsrfToken } from './api';
 
 export interface AuthUser {
@@ -32,6 +24,10 @@ interface AuthResponse {
 interface AuthContextValue {
   user: AuthUser | null;
   workspaces: WorkspaceSummary[];
+  /** UI-only selected workspace id (never trusted by the server). */
+  selectedWorkspaceId: string | null;
+  /** Select (or clear) the active workspace; persists locally. */
+  selectWorkspace: (id: string | null) => void;
   /** True until the initial /auth/me probe resolves. */
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -43,8 +39,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const SELECTED_WORKSPACE_KEY = 'assetnest-workspace-id';
 
-/** Selected-workspace persistence is UI state only; the server always authorizes. */
-export function getSelectedWorkspaceId(): string | null {
+function readStoredSelection(): string | null {
   try {
     return window.localStorage.getItem(SELECTED_WORKSPACE_KEY);
   } catch {
@@ -52,7 +47,7 @@ export function getSelectedWorkspaceId(): string | null {
   }
 }
 
-export function setSelectedWorkspaceId(id: string | null): void {
+function persistSelection(id: string | null): void {
   try {
     if (id === null) {
       window.localStorage.removeItem(SELECTED_WORKSPACE_KEY);
@@ -64,10 +59,24 @@ export function setSelectedWorkspaceId(id: string | null): void {
   }
 }
 
+export function getSelectedWorkspaceId(): string | null {
+  return readStoredSelection();
+}
+
+export function setSelectedWorkspaceId(id: string | null): void {
+  persistSelection(id);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(readStoredSelection);
   const [isLoading, setIsLoading] = useState(true);
+
+  const selectWorkspace = useCallback((id: string | null) => {
+    setSelectedWorkspaceId(id);
+    persistSelection(id);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -108,8 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, workspaces, isLoading, login, logout, refresh }),
-    [user, workspaces, isLoading, login, logout, refresh],
+    () => ({ user, workspaces, selectedWorkspaceId, selectWorkspace, isLoading, login, logout, refresh }),
+    [user, workspaces, selectedWorkspaceId, selectWorkspace, isLoading, login, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

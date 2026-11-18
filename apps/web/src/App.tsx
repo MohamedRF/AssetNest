@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
+import { AcceptInvite } from './pages/AcceptInvite';
 import { Audits } from './pages/Audits';
 import { AssetForm } from './pages/AssetForm';
 import { AssetsList } from './pages/AssetsList';
@@ -13,6 +14,7 @@ import { NotFound } from './pages/NotFound';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Warranties } from './pages/Warranties';
+import { Team } from './pages/Team';
 
 export function App() {
   return (
@@ -31,8 +33,10 @@ export function App() {
         <Route path="reports" element={<Reports />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="team" element={<Team />} />
         <Route path="*" element={<NotFound />} />
       </Route>
+      <Route path="/accept-invite" element={<AcceptInvite />} />
     </Routes>
   );
 }

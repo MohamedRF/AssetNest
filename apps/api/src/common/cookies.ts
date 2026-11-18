@@ -42,7 +42,9 @@ export function serializeCookie(name: string, value: string, options: CookieOpti
   if (options.httpOnly) {
     segments.push('HttpOnly');
   }
-  segments.push(`SameSite=${options.sameSite === 'lax' ? 'Lax' : options.sameSite === 'strict' ? 'Strict' : 'None'}`);
+  segments.push(
+    `SameSite=${options.sameSite === 'lax' ? 'Lax' : options.sameSite === 'strict' ? 'Strict' : 'None'}`,
+  );
   if (options.secure) {
     segments.push('Secure');
   }

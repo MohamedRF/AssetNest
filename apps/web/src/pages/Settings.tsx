@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import {
   Bell,
   Building2,
@@ -16,8 +16,15 @@ import {
 import { PageHeader } from '../components/PageHeader';
 import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input, Select } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { useToast } from '../components/ui/toast';
 import { cn } from '../lib/utils';
 import { getTheme, setTheme, type Theme } from '../lib/theme';
+import { api, isApiError } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
 interface SettingsSection {
   title: string;
@@ -27,13 +34,102 @@ interface SettingsSection {
   note: string;
 }
 
+/** Working workspace card: lists your workspaces and creates new ones. */
+function WorkspaceCard() {
+  const { workspaces, refresh } = useAuth();
+  const { workspace, selectWorkspace } = useSelectedWorkspace();
+  const { toast } = useToast();
+  const [name, setName] = useState('');
+  const [mode, setMode] = useState<'home' | 'office'>('office');
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onCreate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setCreating(true);
+    try {
+      const created = await api.post<{ id: string; name: string }>('/workspaces', {
+        name: name.trim(),
+        mode,
+      });
+      await refresh();
+      selectWorkspace(created.id);
+      toast({ title: `Workspace "${created.name}" created`, variant: 'success' });
+      setName('');
+    } catch (err) {
+      setError(isApiError(err) ? err.detail : 'Could not create the workspace. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <Building2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <CardTitle>Workspace</CardTitle>
+          <CardDescription>
+            Create workspaces and switch context. Each workspace is isolated — members, assets and history
+            never mix.
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {workspace && (
+          <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
+            <p className="text-xs font-medium uppercase leading-5 text-muted-foreground">Current workspace</p>
+            <p className="text-sm font-semibold text-foreground">{workspace.name}</p>
+            <p className="text-xs capitalize text-muted-foreground">
+              {workspace.mode} mode · your role: {workspace.role}
+            </p>
+          </div>
+        )}
+        <form onSubmit={onCreate} className="flex flex-wrap items-end gap-2">
+          <div className="flex min-w-[12rem] flex-1 flex-col gap-1.5">
+            <Label htmlFor="new-workspace-name">New workspace</Label>
+            <Input
+              id="new-workspace-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Home, Acme Office"
+              required
+              minLength={1}
+              maxLength={120}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-workspace-mode">Mode</Label>
+            <Select
+              id="new-workspace-mode"
+              value={mode}
+              onChange={(event) => setMode(event.target.value as 'home' | 'office')}
+            >
+              <option value="office">Office</option>
+              <option value="home">Home</option>
+            </Select>
+          </div>
+          <Button type="submit" disabled={creating || name.trim().length === 0}>
+            Create
+          </Button>
+        </form>
+        {error !== null && (
+          <p role="alert" className="text-xs text-danger">
+            {error}
+          </p>
+        )}
+        {workspaces.length > 1 && (
+          <p className="text-xs leading-5 text-muted-foreground">
+            You belong to {workspaces.length} workspaces — switch between them from the top bar.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 const STANDARD_SECTIONS: readonly SettingsSection[] = [
-  {
-    title: 'Workspace',
-    description: 'Name, mode (home or office), default currency, time zone and workspace deletion.',
-    icon: Building2,
-    note: 'Available once the API connects (Phase 1)',
-  },
   {
     title: 'Assets & categories',
     description: 'Categories, asset models, custom field templates and asset tag sequences.',
@@ -84,6 +180,7 @@ export function Settings() {
     <div className="flex flex-col">
       <PageHeader
         title="Settings"
+        demo={false}
         description="Workspace preferences and connected services. Everything here is tenant-scoped — no setting is shared across workspaces."
       />
 
@@ -118,6 +215,8 @@ export function Settings() {
             </div>
           </CardContent>
         </Card>
+
+        <WorkspaceCard />
 
         {STANDARD_SECTIONS.map((section) => (
           <Card key={section.title}>

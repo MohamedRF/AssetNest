@@ -18,7 +18,8 @@ import { APP_CONFIG, DATABASE } from './common/tokens.js';
     },
     {
       provide: DATABASE,
-      useFactory: (config: AppConfig): Database => createDatabase(config.DATABASE_URL),
+      useFactory: (config: AppConfig): Database =>
+        createDatabase(config.DATABASE_URL, { max: config.DATABASE_POOL_MAX }),
       inject: [APP_CONFIG],
     },
   ],

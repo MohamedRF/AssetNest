@@ -21,7 +21,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "node ./dist/migrate.js",
     "seed": "node ./dist/seed.js",
-    "clean": "rimraf dist coverage"
+    "clean": "rimraf dist coverage",
+    "dev:pglite": "node scripts/dev-pglite.mjs"
   },
   "dependencies": {
     "@assetnest/domain": "workspace:*",
@@ -32,6 +33,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite-socket": "0.2.19",
     "@types/node": "26.6.6",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",

@@ -5,10 +5,11 @@ import { DatabaseModule } from './database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { VersionController } from './version/version.controller.js';
 import { AuthModule } from './auth/auth.module.js';
+import { WorkspacesModule } from './workspaces/workspaces.module.js';
 
 /** Application root module. */
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [DatabaseModule, AuthModule, WorkspacesModule],
   controllers: [HealthController, VersionController],
 })
 export class AppModule implements OnApplicationShutdown {

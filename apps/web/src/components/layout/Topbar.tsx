@@ -15,23 +15,13 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../lib/auth';
+import { useSelectedWorkspace } from '../../lib/use-selected-workspace';
 
-const SELECTED_WORKSPACE_KEY = 'assetnest-workspace-id';
-
-/** Workspace switcher backed by the signed-in session; selection persists as UI state only. */
+/** Workspace switcher backed by the signed-in session; via the shared selection hook. */
 function WorkspaceSwitcher() {
-  const { workspaces } = useAuth();
+  const { workspace: active, workspaces, selectWorkspace } = useSelectedWorkspace();
   const [open, setOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
-    try {
-      return window.localStorage.getItem(SELECTED_WORKSPACE_KEY);
-    } catch {
-      return null;
-    }
-  });
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const active = workspaces.find((ws) => ws.id === selectedId) ?? workspaces[0];
 
   useEffect(() => {
     if (!open) return;
@@ -50,12 +40,7 @@ function WorkspaceSwitcher() {
   }, [open]);
 
   const select = (id: string) => {
-    setSelectedId(id);
-    try {
-      window.localStorage.setItem(SELECTED_WORKSPACE_KEY, id);
-    } catch {
-      // Storage unavailable — selection stays in-memory for this session.
-    }
+    selectWorkspace(id);
     setOpen(false);
   };
 
@@ -134,7 +119,8 @@ function WorkspaceSwitcher() {
             </button>
           ))}
           <p className="border-t border-border px-3 pb-1.5 pt-2 text-[11px] leading-4 text-muted-foreground">
-            Workspace switching is a UI preference. The server authorizes every request against your membership.
+            Workspace switching is a UI preference. The server authorizes every request against your
+            membership.
           </p>
         </div>
       )}

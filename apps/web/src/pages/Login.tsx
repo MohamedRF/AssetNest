@@ -117,8 +117,8 @@ export function Login() {
               >
                 <ServerOff aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  Could not reach the AssetNest API. Make sure the API server is running (port 3000 by default)
-                  and try again.
+                  Could not reach the AssetNest API. Make sure the API server is running (port 3000 by
+                  default) and try again.
                 </span>
               </div>
             )}
@@ -176,7 +176,8 @@ export function Login() {
       </Card>
 
       <p className="mt-6 max-w-md text-center text-xs leading-5 text-muted-foreground">
-        Sessions are stored in an HttpOnly cookie on your own infrastructure. Nothing is stored on this device.
+        Sessions are stored in an HttpOnly cookie on your own infrastructure. Nothing is stored on this
+        device.
       </p>
     </main>
   );

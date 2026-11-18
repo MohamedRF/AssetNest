@@ -15,6 +15,20 @@
       "when": 1795019417659,
       "tag": "0001_integrity_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795021027432,
+      "tag": "0002_premium_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795021031033,
+      "tag": "0003_invite_status_check",
+      "breakpoints": true
     }
   ]
 }
