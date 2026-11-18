@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import argon2 from 'argon2';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import type { AppConfig } from '@assetnest/config';
@@ -15,24 +15,9 @@ import type {
   CreateWorkspaceInput,
   UpdateWorkspaceInput,
 } from './dto.js';
+import { httpCode, isUniqueViolation } from '../common/problem.js';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-function httpCode(status: HttpStatus, message: string, code: string): HttpException {
-  return new HttpException({ message, code }, status);
-}
-
-/** Walk the drizzle/driver cause chain looking for PG error code 23505 (unique_violation). */
-function isUniqueViolation(error: unknown): boolean {
-  let current: unknown = error;
-  for (let depth = 0; depth < 5 && current; depth += 1) {
-    if ((current as { code?: unknown }).code === '23505') {
-      return true;
-    }
-    current = (current as { cause?: unknown }).cause;
-  }
-  return false;
-}
 
 function slugify(name: string): string {
   const slug = name
