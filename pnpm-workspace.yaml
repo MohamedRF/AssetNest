@@ -1,0 +1,5 @@
+# AssetNest — pnpm workspace + Turborepo (web-only)
+packages:
+  - apps/*
+  - packages/*
+  - integrations/*

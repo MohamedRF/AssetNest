@@ -1,0 +1,183 @@
+# CI for AssetNest — runs on every push to main and every pull request.
+#
+# What this enforces (mirrors the release gates in ROADMAP.md / TESTING_QA.md):
+#   baseline   — install (frozen), lint, typecheck, unit/integration tests (PGlite,
+#                no services), production build, prettier format check, and a
+#                dependency audit that FAILS on critical advisories in prod deps.
+#   migrations — applies packages/db migrations to a real PostgreSQL 17 service to
+#                prove the chain works against genuine Postgres (PGlite is a
+#                compatible reimplementation, not the real thing).
+#   docker     — validates the compose files and builds both images (no push, no
+#                registry, no secrets).
+#
+# No secrets are required. No deployment steps. Image builds/pushes to registries
+# and release automation are intentionally out of scope until release criteria are met.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Re-running CI on a branch cancels the superseded run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.34.9' # must match package.json#packageManager
+  TURBO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  baseline:
+    name: Lint · typecheck · test · build · audit · format
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # pnpm must be installed before setup-node so `cache: pnpm` can resolve
+      # the store path.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Tests run against PGlite (in-process Postgres-compatible engine), so no
+      # service containers are needed here. The migrations job covers real PG.
+      - name: Test
+        run: pnpm test
+
+      - name: Build (turbo)
+        run: pnpm build
+
+      - name: Format check (prettier)
+        run: pnpm format:check
+
+      # Fails the job when a CRITICAL advisory affects production dependencies.
+      # High/moderate advisories still print to the log but do not gate.
+      # Requires network access to the registry advisory endpoint.
+      - name: Audit production dependencies (fail on critical)
+        run: pnpm audit --prod --audit-level=critical
+
+  migrations:
+    name: Migrations against PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          # Ephemeral CI-only credentials — not secrets, discarded with the runner.
+          POSTGRES_USER: assetnest_ci
+          POSTGRES_PASSWORD: assetnest_ci_password
+          POSTGRES_DB: assetnest_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U assetnest_ci -d assetnest_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URL: postgresql://assetnest_ci:assetnest_ci_password@localhost:5432/assetnest_ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # migrate.js reads DATABASE_URL and applies packages/db/migrations.
+      - name: Build @assetnest/db
+        run: pnpm --filter @assetnest/db build
+
+      - name: Apply migrations to PostgreSQL
+        run: pnpm --filter @assetnest/db migrate
+
+      # A second run must also succeed (migration runner should track applied
+      # revisions). If this ever fails, the runner is not idempotent — investigate.
+      - name: Re-apply migrations (idempotency smoke check)
+        run: pnpm --filter @assetnest/db migrate
+
+  docker:
+    name: Docker images + compose validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # docker compose config requires interpolation variables and env_file to
+      # exist. The throwaway .env below uses obvious CI-only placeholder values —
+      # it is git-ignored, never committed, and discarded with the runner.
+      - name: Create throwaway CI .env (not a secret)
+        run: |
+          printf '%s\n' \
+            'NODE_ENV=production' \
+            'PUBLIC_APP_URL=https://ci.invalid' \
+            'API_PORT=3000' \
+            'POSTGRES_USER=assetnest_ci' \
+            'POSTGRES_PASSWORD=assetnest_ci_password' \
+            'POSTGRES_DB=assetnest_ci' \
+            'DATABASE_URL=postgresql://assetnest_ci:assetnest_ci_password@localhost:5432/assetnest_ci' \
+            'REDIS_URL=redis://localhost:6379' \
+            'SESSION_SECRET=ci_only_placeholder_not_a_real_secret_000000000000' \
+            'ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+            'STORAGE_DRIVER=local' \
+            'STORAGE_ROOT=/data/private-files' \
+            'MAIL_TRANSPORT=log' \
+            'AI_ENABLED=false' \
+            > .env
+          # ENCRYPTION_KEY is 32 zero-bytes base64-decoded — a deliberately
+          # invalid, CI-only value (never used to serve real data).
+
+      # --profile app so every service is resolved and validated (without a
+      # profile flag, compose config sees only zero services and validates an
+      # empty stack). --quiet checks without printing the resolved secrets.
+      - name: Validate compose files
+        run: |
+          docker compose --env-file .env --profile app -f infrastructure/compose/compose.yaml config --quiet
+          docker compose --env-file .env --profile infra -f infrastructure/compose/compose.yaml config --quiet
+
+      # Builds prove the Dockerfiles end-to-end (base-image pull, frozen install,
+      # tsc/vite builds). Images are NOT pushed anywhere. Any failure here is
+      # real breakage in the build chain and blocks the merge.
+      - name: Build API image
+        run: docker build -f infrastructure/compose/Dockerfile.api -t assetnest-api:ci .
+
+      - name: Build web image
+        run: docker build -f infrastructure/compose/Dockerfile.web -t assetnest-web:ci .

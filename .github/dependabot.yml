@@ -1,0 +1,62 @@
+# Dependabot configuration for AssetNest.
+#
+# Ecosystems covered:
+#   npm               — root of the pnpm workspace (apps/*, packages/*); weekly.
+#   github-actions    — workflow action versions; weekly.
+#   docker            — base images referenced by infrastructure/compose/Dockerfiles.
+#
+# No auto-merge is configured on purpose: dependency updates go through the same
+# CI gates (lint/typecheck/test/build/audit/migrations/docker) as human PRs.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 10
+    groups:
+      nestjs:
+        patterns:
+          - '@nestjs/*'
+          - 'nestjs-pino'
+      vite-react:
+        patterns:
+          - 'vite'
+          - '@vitejs/*'
+          - 'vitest'
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+          - '@tanstack/*'
+      tailwind:
+        patterns:
+          - 'tailwindcss'
+          - '@tailwindcss/*'
+      eslint-prettier:
+        patterns:
+          - 'eslint'
+          - 'eslint-*'
+          - '@eslint/*'
+          - 'typescript-eslint'
+          - 'prettier'
+          - 'eslint-config-prettier'
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: '/infrastructure/compose'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+    open-pull-requests-limit: 5

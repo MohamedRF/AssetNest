@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AssetNest — self-hostable, web-only asset management for households and offices. Know what you own, where it is, who is responsible, and what it cost."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)" />
+    <title>AssetNest</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%230f766e' d='M16 1.5 29 9v14L16 30.5 3 23V9Z'/%3E%3Cpath fill='%23fafaf9' d='M10 19c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2v1.5a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2Z'/%3E%3Cpath fill='%23fafaf9' d='M12 15c.5-3.6 2.4-5.4 4-5.4s3.5 1.8 4 5.4a6.4 6.4 0 0 1-4 .9 6.4 6.4 0 0 1-4-.9Z'/%3E%3Ccircle fill='%230f766e' cx='16' cy='12.4' r='1.15'/%3E%3C/svg%3E"
+    />
+    <script>
+      // Apply the persisted theme before first paint to avoid a flash of the wrong theme.
+      (function () {
+        try {
+          var stored = localStorage.getItem('assetnest-theme');
+          var theme = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+          var dark =
+            theme === 'dark' ||
+            (theme === 'system' &&
+              typeof window.matchMedia === 'function' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (error) {
+          // Never block rendering on theme resolution.
+          console.warn('AssetNest: unable to apply persisted theme', error);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

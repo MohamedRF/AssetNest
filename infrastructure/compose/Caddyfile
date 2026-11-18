@@ -1,0 +1,60 @@
+# Caddyfile — AssetNest web tier (single-host reference).
+#
+# What this does:
+#   1. Serves the Vite production build from /srv/www (copied in by the Dockerfile).
+#   2. Proxies anything under /api/* and /health/* to the `api` compose service.
+#   3. Falls back to index.html for client-side routes (SPA).
+#
+# TLS: when you point a real hostname at this host, replace `:80` below with your
+# domain (e.g. `app.example.com`). Caddy then obtains and renews certificates
+# automatically (ports 80 and 443 must be reachable). Until then, plain-HTTP
+# on port 80 is intentional for local/self-host evaluation. Never expose the
+# plain-HTTP listener to the public internet without a TLS terminator in front.
+#
+# Routing note: the handle blocks are mutually exclusive (first match wins).
+# They are used instead of bare `try_files` + `reverse_proxy` directives because
+# Caddy's default directive order runs try_files (rewrite phase) before
+# reverse_proxy, which would rewrite /api/* to /index.html and break the API.
+
+:80 {
+	# Static files root (Vite build output copied to /srv/www by Dockerfile.web)
+	root * /srv/www
+
+	# Pre-compress responses; clients still get identity if they cannot decode.
+	encode gzip zstd
+
+	# API traffic → NestJS service (compose service name resolves on the default network).
+	# The API serves everything under /api/v1/* — the path is forwarded unchanged.
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	# Convenience liveness alias for uptime probes → real path on the NestJS service.
+	handle /health/live {
+		rewrite * /api/v1/health/live
+		reverse_proxy api:3000
+	}
+
+	# Everything else: SPA with history-API fallback to index.html.
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Security headers at the edge. HSTS is only meaningful over HTTPS; enable
+	# it here (or in your TLS block) once the hostname + certificate are live.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Access log to stdout (collected by Docker; do not log request bodies —
+	# uploaded documents and secrets must never appear in logs).
+	log {
+		output stdout
+		format console
+	}
+}

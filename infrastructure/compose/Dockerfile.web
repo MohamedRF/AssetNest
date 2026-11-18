@@ -1,0 +1,51 @@
+# syntax=docker/dockerfile:1
+#
+# AssetNest web image: builds the Vite SPA and serves it with Caddy.
+#
+# Build context MUST be the repository root (see compose.yaml):
+#   docker build -f infrastructure/compose/Dockerfile.web -t assetnest/web:local .
+#
+# Stage 1 compiles apps/web to static assets; stage 2 is a minimal Caddy image
+# serving them and reverse-proxying /api/* and /health/* to the api service.
+# No secrets are required at build time (the SPA has no build-time API keys);
+# any VITE_* variables would be baked in, so do NOT pass secrets as build args.
+
+FROM node:24-alpine AS build
+
+# pnpm pinned to the version in package.json ("packageManager": "pnpm@10.34.9").
+RUN corepack enable \
+ && npm install --global pnpm@10.34.9 \
+ && npm cache clean --force
+
+WORKDIR /app
+
+# Workspace manifests first for layer caching. pnpm's frozen-lockfile check
+# validates the WHOLE workspace, so every importer's package.json must exist —
+# including apps/api's (its sources are NOT copied).
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+
+# Web depends on no workspace packages today, but the lockfile validates the
+# whole workspace, so all package.json manifests must exist.
+COPY packages/ ./packages/
+COPY apps/web/ ./apps/web/
+COPY apps/api/package.json ./apps/api/package.json
+
+RUN pnpm install --frozen-lockfile --filter @assetnest/web... \
+ && pnpm --filter @assetnest/web build
+
+# ---------------------------------------------------------------------------
+FROM caddy:2-alpine
+
+# Single-host routing: static SPA + /api/* and /health/* → api:3000. See comments
+# in the Caddyfile for the TLS notes (replace :80 with your hostname to enable
+# automatic HTTPS).
+COPY infrastructure/compose/Caddyfile /etc/caddy/Caddyfile
+
+# Vite outputs apps/web/dist by default.
+COPY --from=build /app/apps/web/dist /srv/www
+
+EXPOSE 80
+# 443 is only needed once the Caddyfile uses a TLS hostname; publish it then.
+
+# No USER directive: caddy:2-alpine starts as root to bind port 80/443 and drops
+# privileges internally (workers run as the unprivileged `caddy` user).

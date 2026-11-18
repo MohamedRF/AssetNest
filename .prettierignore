@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.turbo
+var
+*.log
+pnpm-lock.yaml
+**/migrations/**

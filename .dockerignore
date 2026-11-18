@@ -1,0 +1,45 @@
+# AssetNest — .dockerignore (repo root, used by all builds in infrastructure/compose/)
+#
+# Keeps build contexts small and guarantees secrets/build output never enter an
+# image. Patterns use Docker's Go filepath syntax (`**` matches across segments);
+# a bare name matches only at the root, so node_modules/dist are listed in both
+# forms.
+
+# Dependencies — reinstalled inside the image from the frozen lockfile.
+node_modules
+**/node_modules
+
+# Build output — rebuilt inside the image (db/api via tsc, web via vite).
+dist
+**/dist
+
+# Turbo and bundler caches.
+.turbo
+**/.turbo
+
+# Test/coverage artifacts.
+coverage
+**/coverage
+test-results
+**/test-results
+playwright-report
+**/playwright-report
+
+# VCS and Git metadata.
+.git
+**/.git
+.gitattributes
+
+# Secrets and local environment — must never enter an image or build log.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Local runtime data (STORAGE_ROOT default ./var/private-files, etc.).
+var
+**/var
+
+# Logs.
+*.log
+**/*.log

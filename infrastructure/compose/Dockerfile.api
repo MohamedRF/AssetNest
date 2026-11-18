@@ -1,0 +1,61 @@
+# syntax=docker/dockerfile:1
+#
+# AssetNest API / one-shot migration image.
+#
+# The SAME image is used for:
+#   - the one-shot `migrate` service (command: pnpm --filter @assetnest/db migrate)
+#   - the long-running `api` service (default CMD below)
+# so migrations always run the exact code the API runs.
+#
+# Build context MUST be the repository root (see compose.yaml):
+#   docker build -f infrastructure/compose/Dockerfile.api -t assetnest/api:local .
+#
+# Requires apps/api and packages/* to exist (they do) and the pnpm-lock.yaml to be
+# in sync with all workspace package.json files (run `pnpm install` locally first).
+# The first build downloads base images and npm packages — it needs network access.
+# No secrets are copied into the image; all configuration arrives via environment
+# variables at runtime (see compose.yaml / .env).
+
+FROM node:24-alpine
+
+# Enable corepack for pnpm shims, and install the exact pnpm version pinned in
+# package.json ("packageManager": "pnpm@10.34.9"). Keep the two in sync.
+RUN corepack enable \
+ && npm install --global pnpm@10.34.9 \
+ && npm cache clean --force
+
+WORKDIR /app
+
+# Copy workspace manifests first so this layer caches until dependencies change.
+# pnpm's frozen-lockfile check validates the WHOLE workspace, so every importer's
+# package.json must exist — including apps/web's (sources are NOT copied).
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+
+# Copy sources the API depends on. apps/web is NOT copied — it builds separately
+# (see Dockerfile.web) and is served statically by Caddy.
+COPY packages/ ./packages/
+COPY apps/api/ ./apps/api/
+COPY apps/web/package.json ./apps/web/package.json
+
+# Install exactly what the lockfile says (frozen), scoped to the API and its
+# workspace dependencies, then build db (migrate.js + dist) before api. Build
+# tools (typescript) are devDependencies and get installed because NODE_ENV is
+# unset at this point; the runtime layer inherits them but that is the
+# trade-off of a single-stage, simple reference image.
+RUN pnpm install --frozen-lockfile --filter @assetnest/api... \
+ && pnpm --filter @assetnest/db build \
+ && pnpm --filter @assetnest/api build
+
+# Runtime configuration arrives via environment only (no secrets in the image).
+# NODE_ENV is intentionally NOT set here: .env decides it. For real production
+# deployments set NODE_ENV=production and PUBLIC_APP_URL=https://... in .env —
+# @assetnest/config refuses to boot in production mode without an https URL.
+
+EXPOSE 3000
+
+# Run as the unprivileged `node` user baked into the node images (uid 1000).
+# Files are copied root-owned but world-readable; the app only reads them.
+USER node
+
+# Liveness is verified by the compose healthcheck against /api/v1/health/live.
+CMD ["node", "apps/api/dist/main.js"]
