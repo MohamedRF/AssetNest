@@ -235,7 +235,8 @@ describe('assets (e2e)', () => {
       .set('Cookie', owner.cookie);
     expect(res.status).toBe(200);
     expect(String(res.headers['content-type'])).toContain('image/svg+xml');
-    expect(res.text).toContain('<svg');
+    const svg = typeof res.text === 'string' && res.text.length > 0 ? res.text : res.body.toString('utf8');
+    expect(svg).toContain('<svg');
   });
 
   it('hides the asset from a workspace the user does not belong to (404)', async () => {
