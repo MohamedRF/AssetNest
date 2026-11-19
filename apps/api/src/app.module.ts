@@ -15,6 +15,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { AuditsModule } from './audits/audits.module.js';
 import { ImportsModule } from './imports/imports.module.js';
+import { ExportsModule } from './exports/exports.module.js';
 
 /** Application root module. */
 @Module({
@@ -31,6 +32,7 @@ import { ImportsModule } from './imports/imports.module.js';
     NotificationsModule,
     AuditsModule,
     ImportsModule,
+    ExportsModule,
   ],
   controllers: [HealthController, VersionController],
 })

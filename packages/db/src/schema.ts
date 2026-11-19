@@ -190,6 +190,24 @@ export const imports = pgTable(
   (t) => [index('imports_workspace_status_idx').on(t.workspaceId, t.status)],
 );
 
+// ─── Exports (generated report files) ───────────────────────────────────────
+
+export const exports = pgTable(
+  'exports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    report: text('report').notNull(), // 'assets' | 'warranties' | 'maintenance'
+    objectKey: text('object_key').notNull(),
+    status: text('status').notNull().default('pending'), // 'pending' | 'completed' | 'failed'
+    ...timestamps,
+  },
+  (t) => [index('exports_workspace_time_idx').on(t.workspaceId, t.createdAt)],
+);
+
 // ─── Transactional outbox & notification delivery ───────────────────────────
 
 export const outboxEvents = pgTable(
