@@ -9,11 +9,18 @@ export interface DashboardStats {
   openAudits: number;
 }
 
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  resource: string;
+  occurredAt: string;
+}
+
 export interface DashboardData {
   stats: DashboardStats;
-  /** Honest empty list — recent activity lands with Phase 2's event/audit feed. */
-  recentActivity: ReadonlyArray<never>;
-  /** True while stats are placeholder zeros rather than live API data. */
+  recentActivity: ReadonlyArray<ActivityEntry>;
+  canSeeAuditLog: boolean;
+  /** True while any stat is still a placeholder (API unreachable or error). */
   isPlaceholder: boolean;
 }
 
@@ -24,13 +31,25 @@ const PLACEHOLDER_STATS: DashboardStats = {
   openAudits: 0,
 };
 
+interface WarrantyList {
+  warranties: Array<{ id: string; derivedStatus: string }>;
+}
+interface PlanList {
+  plans: Array<{ id: string; dueState: string }>;
+}
+interface AuditLogList {
+  entries: Array<{ id: string; action: string; resource: string; occurred_at?: string; occurredAt?: string }>;
+}
+
 /**
- * Live dashboard stats. Only total assets is wired today — warranty/maintenance/audits
- * have no endpoints yet (Phase 2/3), so they stay honestly at zero rather than inventing numbers.
+ * Live operational summary. `openAudits` stays a fixed honest zero until
+ * Phase 3 ships audits. Recent activity reads the workspace audit log
+ * (owner/admin only — regular members get a polite empty note).
  */
 export function useDashboard(): DashboardData {
   const { workspace } = useSelectedWorkspace();
   const workspaceId = workspace?.id;
+  const canSeeAuditLog = workspace?.role === 'owner' || workspace?.role === 'admin';
 
   const assetsQuery = useQuery({
     queryKey: ['dashboard-assets-total', workspaceId],
@@ -39,12 +58,44 @@ export function useDashboard(): DashboardData {
     staleTime: 30_000,
   });
 
-  if (assetsQuery.data) {
-    return {
-      stats: { ...PLACEHOLDER_STATS, totalAssets: assetsQuery.data.total },
-      recentActivity: [],
-      isPlaceholder: false,
-    };
-  }
-  return { stats: PLACEHOLDER_STATS, recentActivity: [], isPlaceholder: true };
+  const warrantiesQuery = useQuery({
+    queryKey: ['dashboard-warranties-due', workspaceId],
+    enabled: workspaceId !== undefined,
+    queryFn: () => api.get<WarrantyList>(`/workspaces/${workspaceId}/warranties?expiringDays=90`),
+    staleTime: 60_000,
+  });
+
+  const plansQuery = useQuery({
+    queryKey: ['dashboard-maintenance-overdue', workspaceId],
+    enabled: workspaceId !== undefined,
+    queryFn: () => api.get<PlanList>(`/workspaces/${workspaceId}/maintenance/plans`),
+    staleTime: 60_000,
+  });
+
+  const activityQuery = useQuery({
+    queryKey: ['dashboard-audit-log', workspaceId],
+    enabled: workspaceId !== undefined && canSeeAuditLog,
+    queryFn: () => api.get<AuditLogList>(`/workspaces/${workspaceId}/audit-log?limit=8`),
+    staleTime: 15_000,
+  });
+
+  const stats: DashboardStats = {
+    totalAssets: assetsQuery.data?.total ?? PLACEHOLDER_STATS.totalAssets,
+    warrantyDue: warrantiesQuery.data?.warranties.length ?? PLACEHOLDER_STATS.warrantyDue,
+    maintenanceOverdue:
+      plansQuery.data?.plans.filter((plan) => plan.dueState === 'overdue').length ??
+      PLACEHOLDER_STATS.maintenanceOverdue,
+    openAudits: 0,
+  };
+
+  const isPlaceholder = assetsQuery.isError && warrantiesQuery.isError && plansQuery.isError;
+
+  const recentActivity: ActivityEntry[] = (activityQuery.data?.entries ?? []).map((entry) => ({
+    id: entry.id,
+    action: entry.action,
+    resource: entry.resource,
+    occurredAt: entry.occurredAt ?? entry.occurred_at ?? '',
+  }));
+
+  return { stats, recentActivity, canSeeAuditLog, isPlaceholder };
 }

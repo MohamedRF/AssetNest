@@ -11,7 +11,6 @@ import { Link } from 'react-router-dom';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
 import { StatCard } from '../components/StatCard';
-import { Badge } from '../components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { useDashboard } from '../hooks/useDashboard';
 
@@ -34,20 +33,44 @@ const GETTING_STARTED_STEPS = [
 ] as const;
 
 export function Dashboard() {
-  const { stats, isPlaceholder } = useDashboard();
+  const { stats, recentActivity, canSeeAuditLog } = useDashboard();
+
+  const actionLabel = (action: string): string =>
+    ({
+      'asset.created': 'Asset registered',
+      'asset.updated': 'Asset updated',
+      'asset.archived': 'Asset archived',
+      'asset.assigned': 'Asset assigned',
+      'asset.returned': 'Asset returned',
+      'asset.transferred': 'Asset transferred',
+      'asset.status_changed': 'Status changed',
+      'warranty.created': 'Warranty added',
+      'warranty.updated': 'Warranty updated',
+      'maintenance.record_created': 'Service recorded',
+      'maintenance.plan_created': 'Maintenance plan created',
+      'workspace.created': 'Workspace created',
+      'workspace.updated': 'Workspace updated',
+      'invite.accepted': 'Member joined',
+      'invite.created': 'Invite created',
+      'invite.revoked': 'Invite revoked',
+      'member.role_changed': 'Role changed',
+      'member.removed': 'Member removed',
+      'category.created': 'Category added',
+      'category.updated': 'Category updated',
+      'location.created': 'Location created',
+      'location.updated': 'Location updated',
+      'vendor.created': 'Vendor added',
+      'vendor.updated': 'Vendor updated',
+      'document.uploaded': 'Document uploaded',
+      'document.deleted': 'Document removed',
+    })[action] ?? action;
 
   return (
     <div className="flex flex-col">
       <PageHeader
         title="Overview"
+        demo={false}
         description="A calm snapshot of what you own, what is due, and what needs attention."
-        actions={
-          isPlaceholder ? (
-            <Badge variant="outline" title="Counts shown are derived placeholders until the API connects">
-              Demo placeholders
-            </Badge>
-          ) : undefined
-        }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -77,7 +100,7 @@ export function Dashboard() {
           value={stats.openAudits}
           icon={ClipboardCheck}
           tone="info"
-          hint="In progress"
+          hint="Arrives with audits (Phase 3)"
         />
       </div>
 
@@ -85,14 +108,32 @@ export function Dashboard() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent activity</CardTitle>
-            <CardDescription>Assignments, movements, repairs and disposals show up here.</CardDescription>
+            <CardDescription>Every lifecycle change is appended to the audit log.</CardDescription>
           </CardHeader>
           <CardContent>
-            <EmptyState
-              icon={History}
-              title="No activity yet"
-              description="Once assets start moving, every change is recorded in an append-only history. Activity entries appear here as soon as the API connects (Phase 1)."
-            />
+            {!canSeeAuditLog ? (
+              <p className="text-sm leading-6 text-muted-foreground">
+                Recent activity is visible to owners and admins. Your own custody trail lives on each asset's
+                detail page.
+              </p>
+            ) : recentActivity.length === 0 ? (
+              <EmptyState
+                icon={History}
+                title="No activity yet"
+                description="Create your first asset, assign it or move it — entries appear here the moment they happen."
+              />
+            ) : (
+              <ol className="flex flex-col divide-y divide-border">
+                {recentActivity.map((entry) => (
+                  <li key={entry.id} className="flex items-baseline justify-between gap-3 py-2.5">
+                    <span className="text-sm font-medium">{actionLabel(entry.action)}</span>
+                    <time className="shrink-0 text-xs text-muted-foreground" dateTime={entry.occurredAt}>
+                      {entry.occurredAt ? new Date(entry.occurredAt).toLocaleString() : ''}
+                    </time>
+                  </li>
+                ))}
+              </ol>
+            )}
           </CardContent>
         </Card>
 
