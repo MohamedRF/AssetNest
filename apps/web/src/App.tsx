@@ -4,6 +4,7 @@ import { AcceptInvite } from './pages/AcceptInvite';
 import { AssetDetailPage } from './pages/AssetDetail';
 import { AuditDetailPage } from './pages/AuditDetail';
 import { Audits } from './pages/Audits';
+import { Imports } from './pages/Imports';
 import { AssetForm } from './pages/AssetForm';
 import { AssetsList } from './pages/AssetsList';
 import { Custody } from './pages/Custody';
@@ -34,6 +35,7 @@ export function App() {
         <Route path="warranties" element={<Warranties />} />
         <Route path="audits" element={<Audits />} />
         <Route path="audits/:auditId" element={<AuditDetailPage />} />
+        <Route path="imports" element={<Imports />} />
         <Route path="reports" element={<Reports />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="settings" element={<Settings />} />

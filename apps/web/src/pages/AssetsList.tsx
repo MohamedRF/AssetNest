@@ -152,10 +152,10 @@ export function AssetsList() {
         description="Everything your workspace owns. Search by tag, name or serial — tags are unique per workspace."
         actions={
           <>
-            <Button variant="outline" size="sm" disabled title="CSV import ships with Phase 3 (imports)">
+            <Link to="/imports" className={cn(buttonVariants({ variant: 'outline', size: 'md' }), 'gap-2')}>
               <Upload aria-hidden="true" className="h-4 w-4" />
-              <span className="hidden sm:inline">Import</span>
-            </Button>
+              <span className="hidden sm:inline">Import CSV</span>
+            </Link>
             <Link to="/assets/new" className={cn(buttonVariants({ size: 'md' }))}>
               <PackagePlus aria-hidden="true" className="h-4 w-4" />
               New asset

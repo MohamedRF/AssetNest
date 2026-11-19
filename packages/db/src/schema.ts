@@ -171,6 +171,25 @@ export const maintenanceRecords = pgTable(
   (t) => [index('maintenance_records_workspace_asset_date_idx').on(t.workspaceId, t.assetId, t.performedAt)],
 );
 
+// ─── Imports (CSV/JSON bulk ingest jobs) ───────────────────────────────────
+
+export const imports = pgTable(
+  'imports',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    objectKey: text('object_key').notNull(),
+    status: text('status').notNull().default('pending'), // 'pending' | 'running' | 'completed' | 'partial' | 'failed'
+    countsJson: jsonb('counts_json').notNull().default({}),
+    validationJson: jsonb('validation_json').notNull().default({}),
+    ...timestamps,
+  },
+  (t) => [index('imports_workspace_status_idx').on(t.workspaceId, t.status)],
+);
+
 // ─── Transactional outbox & notification delivery ───────────────────────────
 
 export const outboxEvents = pgTable(
