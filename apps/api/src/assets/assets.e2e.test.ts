@@ -229,6 +229,15 @@ describe('assets (e2e)', () => {
     expect(second.body.code).toBe('ASSET_ALREADY_ARCHIVED');
   });
 
+  it('serves an opaque QR SVG for the asset (no serial or tag inside)', async () => {
+    const res = await http()
+      .get(`/api/v1/workspaces/${workspaceId}/assets/${assetId}/qr`)
+      .set('Cookie', owner.cookie);
+    expect(res.status).toBe(200);
+    expect(String(res.headers['content-type'])).toContain('image/svg+xml');
+    expect(res.text).toContain('<svg');
+  });
+
   it('hides the asset from a workspace the user does not belong to (404)', async () => {
     const outsiderWorkspace = await http()
       .post('/api/v1/workspaces')

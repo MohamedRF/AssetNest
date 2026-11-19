@@ -1,121 +1,285 @@
-import { Download, Package, Plus, Search, Upload } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ApiPendingButton } from '../components/ApiPendingButton';
-import { AssetStatusBadge, type AssetStatus } from '../components/AssetStatusBadge';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, PackagePlus, QrCode, Search, Upload } from 'lucide-react';
+import { ASSET_STATUSES, AssetStatusBadge, type AssetStatus } from '../components/AssetStatusBadge';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
-import { buttonVariants } from '../components/ui/button';
+import { Button, buttonVariants } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Select } from '../components/ui/input';
+import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
-/** Row shape the API will hydrate (Phase 1). Kept in sync with the asset registry. */
-export interface AssetRow {
+interface AssetRow {
   id: string;
-  tag: string;
+  assetTag: string;
   displayName: string;
+  serialNumber: string | null;
   status: AssetStatus;
   condition: string;
-  location: string;
-  updatedAt: string;
+  createdAt: string;
 }
 
-// TODO(api): query GET /api/v1/assets with page cursor + filters once the API ships (Phase 1).
-const EMPTY_ROWS: readonly AssetRow[] = [];
+interface AssetsPage {
+  items: AssetRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+}
 
-const assetColumns: ReadonlyArray<DataTableColumn<AssetRow>> = [
-  { key: 'tag', header: 'Tag' },
-  { key: 'displayName', header: 'Name' },
-  {
-    key: 'status',
-    header: 'Status',
-    render: (row) => <AssetStatusBadge status={row.status} />,
-  },
-  { key: 'condition', header: 'Condition' },
-  { key: 'location', header: 'Location' },
-  { key: 'updatedAt', header: 'Updated' },
-];
+const PAGE_SIZE = 20;
 
 export function AssetsList() {
+  const { workspace } = useSelectedWorkspace();
+  const workspaceId = workspace?.id;
   const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
+  const navigate = useNavigate();
 
-  // Keep the field in sync when the topbar search navigates to /assets?q=…
+  const [q, setQ] = useState(searchParams.get('q') ?? '');
+  const [status, setStatus] = useState(searchParams.get('status') ?? '');
+  const [lookup, setLookup] = useState('');
+  const page = Number.parseInt(searchParams.get('page') ?? '1', 10) || 1;
+
+  const query = useQuery({
+    queryKey: ['assets', workspaceId, q, status, page],
+    enabled: workspaceId !== undefined,
+    queryFn: () =>
+      api.get<AssetsPage>(
+        `/workspaces/${workspaceId}/assets?page=${page}&pageSize=${PAGE_SIZE}${q ? `&q=${encodeURIComponent(q)}` : ''}${status ? `&status=${encodeURIComponent(status)}` : ''}`,
+      ),
+  });
+
+  const total = query.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = new URLSearchParams();
+    if (q.trim()) next.set('q', q.trim());
+    if (status) next.set('status', status);
+    next.set('page', '1');
+    setSearchParams(next, { replace: true });
+  };
+
+  const submitLookup = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const raw = lookup.trim();
+    // Accept a full assetnest:// URI, a bare UUID, or an asset tag handled by search.
+    const uriMatch = raw.match(/^assetnest:\/\/asset\/([0-9a-f-]{36})$/i);
+    const uuidMatch = raw.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    const target = uriMatch?.[1] ?? uuidMatch?.[0];
+    if (target) {
+      navigate(`/assets/${target}`);
+      return;
+    }
+    setQ(raw);
+    const next = new URLSearchParams();
+    if (raw) next.set('q', raw);
+    next.set('page', '1');
+    setSearchParams(next, { replace: true });
+  };
+
+  const goToPage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(nextPage));
+    setSearchParams(next);
+  };
+
+  const columns: ReadonlyArray<DataTableColumn<AssetRow>> = [
+    {
+      key: 'assetTag',
+      header: 'Tag',
+      render: (row) => (
+        <Link
+          to={`/assets/${row.id}`}
+          className="font-mono text-xs font-semibold text-accent hover:underline"
+        >
+          {row.assetTag}
+        </Link>
+      ),
+    },
+    { key: 'displayName', header: 'Name', className: 'max-w-[16rem] truncate' },
+    {
+      key: 'serialNumber',
+      header: 'Serial',
+      render: (row) => (
+        <span className="font-mono text-xs text-muted-foreground">{row.serialNumber ?? '—'}</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => <AssetStatusBadge status={row.status} />,
+    },
+    { key: 'condition', header: 'Condition', className: 'capitalize' },
+    {
+      key: 'createdAt',
+      header: 'Added',
+      render: (row) => (
+        <span className="text-xs text-muted-foreground">{new Date(row.createdAt).toLocaleDateString()}</span>
+      ),
+    },
+  ];
+
   useEffect(() => {
-    setQuery(searchParams.get('q') ?? '');
+    setQ(searchParams.get('q') ?? '');
+    setStatus(searchParams.get('status') ?? '');
   }, [searchParams]);
 
-  const filteredRows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length === 0) return EMPTY_ROWS;
-    // Client-side narrowing applies once rows exist; today the registry is empty on purpose.
-    return EMPTY_ROWS.filter(
-      (row) => row.tag.toLowerCase().includes(needle) || row.displayName.toLowerCase().includes(needle),
+  if (!workspaceId) {
+    return (
+      <EmptyState
+        icon={PackagePlus}
+        title="Create a workspace first"
+        description="Assets live inside a workspace. Set one up in Settings, then register your first asset here."
+        actionLabel="Go to Settings"
+        actionHref="/settings"
+      />
     );
-  }, [query]);
+  }
 
-  const applySearch = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = query.trim();
-    setSearchParams(trimmed.length > 0 ? { q: trimmed } : {}, { replace: true });
-  };
+  const rows = query.data?.items ?? [];
+  const showEmpty = !query.isLoading && !query.isError && rows.length === 0;
 
   return (
     <div className="flex flex-col">
       <PageHeader
         title="Assets"
-        description="Your registry — every asset, its tag, status and where it lives."
+        demo={false}
+        description="Everything your workspace owns. Search by tag, name or serial — tags are unique per workspace."
         actions={
           <>
-            <ApiPendingButton label="Import" icon={Upload} size="md" />
-            <ApiPendingButton label="Export" icon={Download} size="md" />
+            <Button variant="outline" size="sm" disabled title="CSV import ships with Phase 3 (imports)">
+              <Upload aria-hidden="true" className="h-4 w-4" />
+              <span className="hidden sm:inline">Import</span>
+            </Button>
             <Link to="/assets/new" className={cn(buttonVariants({ size: 'md' }))}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
+              <PackagePlus aria-hidden="true" className="h-4 w-4" />
               New asset
             </Link>
           </>
         }
       />
 
-      <form role="search" onSubmit={applySearch} className="relative mb-4 max-w-md">
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Filter by tag or name…"
-          aria-label="Filter assets by tag or name"
-          className="pl-9"
-        />
-      </form>
+      {/* Filter row */}
+      <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center">
+        <form role="search" onSubmit={submitSearch} className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="relative min-w-0 flex-1 sm:min-w-[14rem]">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              type="search"
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              placeholder="Search tag, name, serial…"
+              aria-label="Search assets"
+              className="h-10 pl-9"
+            />
+          </div>
+          <Select
+            aria-label="Filter by status"
+            className="w-36"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            <option value="">All statuses</option>
+            {ASSET_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+          <Button type="submit" variant="outline" size="sm">
+            Search
+          </Button>
+        </form>
 
-      <DataTable<AssetRow>
-        caption="Asset registry"
-        columns={assetColumns}
-        rows={filteredRows}
-        getRowId={(row) => row.id}
-        emptyState={
-          <EmptyState
-            icon={Package}
-            title={query.trim().length > 0 ? 'No matches' : 'No assets yet'}
-            description={
-              query.trim().length > 0
-                ? `Nothing in the registry matches “${query.trim()}”. Clear the filter or add a new asset.`
-                : 'Create your first asset to start the registry. Imports from CSV and QR label printing arrive with the API (Phase 1).'
-            }
-            actionLabel="Add your first asset"
-            actionHref="/assets/new"
-          />
-        }
-      />
+        {/* QR / manual code lookup */}
+        <form role="search" onSubmit={submitLookup} className="flex items-center gap-2">
+          <div className="relative">
+            <QrCode
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              value={lookup}
+              onChange={(event) => setLookup(event.target.value)}
+              placeholder="Scan or paste asset code…"
+              aria-label="Find asset by QR code or asset ID"
+              className="h-10 w-56 pl-9 font-mono text-xs"
+            />
+          </div>
+          <Button type="submit" variant="ghost" size="sm">
+            Find
+          </Button>
+        </form>
+      </div>
 
-      <p className="mt-4 text-xs leading-5 text-muted-foreground">
-        {EMPTY_ROWS.length} assets · Import, export, saved filters and bulk actions require the API (Phase 1).
-      </p>
+      {/* Table */}
+      {query.isLoading && (
+        <p
+          role="status"
+          className="rounded-xl border border-border bg-surface p-8 text-center text-sm text-muted-foreground"
+        >
+          Loading assets…
+        </p>
+      )}
+      {query.isError && (
+        <p
+          role="alert"
+          className="rounded-xl border border-danger/40 bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
+        >
+          Could not load assets. Check that the API is running and try again.
+        </p>
+      )}
+      {showEmpty && (
+        <EmptyState
+          icon={PackagePlus}
+          title={q || status ? 'No assets match these filters' : 'Register your first asset'}
+          description={
+            q || status
+              ? 'Try clearing the search or status filter.'
+              : 'Laptops, tools, appliances, furniture — if your workspace owns it, it belongs here.'
+          }
+          actionLabel={q || status ? 'Clear filters' : 'Add first asset'}
+          actionHref={q || status ? '/assets' : '/assets/new'}
+        />
+      )}
+      {!query.isLoading && rows.length > 0 && (
+        <>
+          <DataTable caption="Workspace assets" columns={columns} rows={rows} getRowId={(row) => row.id} />
+          <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              {total} {total === 1 ? 'asset' : 'assets'} · page {page} of {totalPages}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Previous page"
+                disabled={page <= 1}
+                onClick={() => goToPage(page - 1)}
+              >
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Next page"
+                disabled={page >= totalPages}
+                onClick={() => goToPage(page + 1)}
+              >
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

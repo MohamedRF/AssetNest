@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AcceptInvite } from './pages/AcceptInvite';
+import { AssetDetailPage } from './pages/AssetDetail';
 import { Audits } from './pages/Audits';
 import { AssetForm } from './pages/AssetForm';
 import { AssetsList } from './pages/AssetsList';
@@ -25,6 +26,7 @@ export function App() {
         <Route index element={<Dashboard />} />
         <Route path="assets" element={<AssetsList />} />
         <Route path="assets/new" element={<AssetForm />} />
+        <Route path="assets/:assetId" element={<AssetDetailPage />} />
         <Route path="locations" element={<Locations />} />
         <Route path="custody" element={<Custody />} />
         <Route path="maintenance" element={<Maintenance />} />

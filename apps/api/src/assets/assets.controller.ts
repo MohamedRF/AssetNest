@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { CurrentWorkspace } from '../auth/current-workspace.decorator.js';
@@ -6,6 +7,7 @@ import { RequirePermissions } from '../auth/permissions.decorator.js';
 import type { PublicUser } from '../auth/auth.service.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import { AssetsService } from './assets.service.js';
+import { QrService } from './qr.service.js';
 import {
   createAssetSchema,
   listAssetsQuerySchema,
@@ -19,7 +21,10 @@ import {
 
 @Controller({ path: 'workspaces/:workspaceId/assets', version: '1' })
 export class AssetsController {
-  constructor(private readonly assetsService: AssetsService) {}
+  constructor(
+    private readonly assetsService: AssetsService,
+    private readonly qrService: QrService,
+  ) {}
 
   @Get()
   @RequirePermissions('assets:read')
@@ -85,5 +90,20 @@ export class AssetsController {
   @RequirePermissions('assets:read')
   async history(@CurrentWorkspace() ctx: WorkspaceContext, @Param('assetId') assetId: string) {
     return { events: await this.assetsService.history(ctx, assetId) };
+  }
+
+  @Get(':assetId/qr')
+  @RequirePermissions('assets:read')
+  async qr(
+    @CurrentWorkspace() ctx: WorkspaceContext,
+    @Param('assetId') assetId: string,
+    @Res() res: Response,
+  ) {
+    const svg = await this.qrService.svgFor(ctx, assetId);
+    res
+      .type('image/svg+xml')
+      // QR of an opaque UUID — safe to cache briefly, never longer than a minute.
+      .set('Cache-Control', 'private, max-age=60')
+      .send(svg);
   }
 }
