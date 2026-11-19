@@ -2,6 +2,7 @@ import { loadConfig } from '@assetnest/config';
 import { createDatabase } from '@assetnest/db';
 import { drainOnce } from './relay.js';
 import { deliverOutboxEvent } from './consumer.js';
+import { deliverWebhooks } from './webhooks.js';
 import { createEmailTransport } from './email.js';
 
 /**
@@ -59,12 +60,13 @@ const consumer = new Worker(
       kind: string;
       aggregateId: string;
     } & Record<string, unknown>;
-    await deliverOutboxEvent(
-      db,
-      { id: eventId, workspaceId, kind, aggregateId, payloadJson: payload },
-      emailTransport,
-      config,
-    );
+    const event = { id: eventId, workspaceId, kind, aggregateId, payloadJson: payload };
+    // Targeted deliveries (test pings, per-subscription retries) skip log/email.
+    const webhookOnly = typeof payload.targetSubscriptionId === 'string';
+    if (!webhookOnly) {
+      await deliverOutboxEvent(db, event, emailTransport, config);
+    }
+    await deliverWebhooks(db, event, config);
   },
   { connection, concurrency: 5 },
 );

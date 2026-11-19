@@ -17,6 +17,7 @@ import { AuditsModule } from './audits/audits.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { ExportsModule } from './exports/exports.module.js';
 import { ApiTokensModule } from './api-tokens/api-tokens.module.js';
+import { WebhooksModule } from './webhooks/webhooks.module.js';
 
 /** Application root module. */
 @Module({
@@ -35,6 +36,7 @@ import { ApiTokensModule } from './api-tokens/api-tokens.module.js';
     ImportsModule,
     ExportsModule,
     ApiTokensModule,
+    WebhooksModule,
   ],
   controllers: [HealthController, VersionController],
 })

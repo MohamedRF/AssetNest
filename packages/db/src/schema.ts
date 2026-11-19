@@ -233,6 +233,52 @@ export const apiTokens = pgTable(
   ],
 );
 
+// ─── Webhooks (signed outbound integrations) ───────────────────────────────
+
+export const webhookSubscriptions = pgTable(
+  'webhook_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    description: text('description'),
+    secretCiphertext: text('secret_ciphertext').notNull(),
+    eventTypes: jsonb('event_types').notNull().default([]), // string[] of event kinds
+    active: boolean('active').notNull().default(true),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [index('webhook_subscriptions_workspace_idx').on(t.workspaceId)],
+);
+
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    subscriptionId: uuid('subscription_id')
+      .notNull()
+      .references(() => webhookSubscriptions.id, { onDelete: 'cascade' }),
+    eventId: uuid('event_id').notNull(),
+    kind: text('kind').notNull(),
+    attempt: integer('attempt').notNull().default(1),
+    responseCode: integer('response_code'),
+    status: text('status').notNull().default('pending'), // 'pending' | 'delivered' | 'failed'
+    error: text('error'),
+    createdAt: timestamps.createdAt,
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('webhook_deliveries_subscription_time_idx').on(t.subscriptionId, t.createdAt),
+    index('webhook_deliveries_event_idx').on(t.eventId, t.subscriptionId),
+  ],
+);
+
 // ─── Transactional outbox & notification delivery ───────────────────────────
 
 export const outboxEvents = pgTable(

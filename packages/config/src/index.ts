@@ -51,6 +51,8 @@ export const configSchema = z.object({
   AI_ENABLED: boolFromString,
   MCP_ENABLED: boolFromString,
   WEBHOOKS_ENABLED: boolFromString,
+  /** Opt-in only: allow webhooks to private/loopback destinations (never in multi-tenant deployments). */
+  WEBHOOKS_ALLOW_PRIVATE: boolFromString,
 
   SEED_ADMIN_EMAIL: z.email().optional(),
   SEED_ADMIN_PASSWORD: z.string().min(12).optional(),
@@ -97,6 +99,7 @@ export function publicConfig(config: AppConfig): Record<string, string | number 
     AI_ENABLED: config.AI_ENABLED,
     MCP_ENABLED: config.MCP_ENABLED,
     WEBHOOKS_ENABLED: config.WEBHOOKS_ENABLED,
+    WEBHOOKS_ALLOW_PRIVATE: config.WEBHOOKS_ALLOW_PRIVATE,
     REDIS_CONFIGURED: Boolean(config.REDIS_URL),
   };
 }
