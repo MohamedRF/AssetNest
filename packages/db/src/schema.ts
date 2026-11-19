@@ -257,6 +257,51 @@ export const warranties = pgTable(
   ],
 );
 
+// ─── Audit sessions & items ─────────────────────────────────────────────────
+
+export const auditSessions = pgTable(
+  'audit_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    label: text('label').notNull(),
+    scopeJson: jsonb('scope_json').notNull().default({}),
+    status: text('status').notNull().default('open'), // 'open' | 'closed'
+    openedBy: uuid('opened_by').references(() => users.id, { onDelete: 'set null' }),
+    closedBy: uuid('closed_by').references(() => users.id, { onDelete: 'set null' }),
+    openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (t) => [index('audit_sessions_workspace_status_idx').on(t.workspaceId, t.status)],
+);
+
+export const auditItems = pgTable(
+  'audit_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    auditId: uuid('audit_id')
+      .notNull()
+      .references(() => auditSessions.id, { onDelete: 'cascade' }),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    observation: text('observation').notNull().default('unobserved'), // 'unobserved' | 'present' | 'missing' | 'moved' | 'extra'
+    observedLocationId: uuid('observed_location_id').references(() => locations.id, { onDelete: 'set null' }),
+    observedBy: uuid('observed_by').references(() => users.id, { onDelete: 'set null' }),
+    observedAt: timestamp('observed_at', { withTimezone: true }),
+    notes: text('notes'),
+  },
+  (t) => [
+    uniqueIndex('audit_items_unique').on(t.auditId, t.assetId),
+    index('audit_items_workspace_audit_idx').on(t.workspaceId, t.auditId),
+  ],
+);
+
 // ─── Documents (private attachments) ────────────────────────────────────────
 
 export const documents = pgTable(

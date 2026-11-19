@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { AssetDetailPage } from './pages/AssetDetail';
+import { AuditDetailPage } from './pages/AuditDetail';
 import { Audits } from './pages/Audits';
 import { AssetForm } from './pages/AssetForm';
 import { AssetsList } from './pages/AssetsList';
@@ -32,6 +33,7 @@ export function App() {
         <Route path="maintenance" element={<Maintenance />} />
         <Route path="warranties" element={<Warranties />} />
         <Route path="audits" element={<Audits />} />
+        <Route path="audits/:auditId" element={<AuditDetailPage />} />
         <Route path="reports" element={<Reports />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="settings" element={<Settings />} />

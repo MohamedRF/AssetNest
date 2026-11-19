@@ -17,7 +17,10 @@ export interface AuditEntry {
  * contents into `metadata` — it is stored in plain text and shown on the
  * audit-log screen.
  */
-export async function writeAuditLog(db: Database, entry: AuditEntry): Promise<void> {
+/** Structural subset — satisfied by both Database and a transaction handle. */
+type AuditDb = Pick<Database, 'insert'>;
+
+export async function writeAuditLog(db: AuditDb, entry: AuditEntry): Promise<void> {
   const correlationId = CorrelationContext.getRequestId() ?? randomUUID();
   await db.insert(auditLog).values({
     workspaceId: entry.workspaceId,
