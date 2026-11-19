@@ -8,6 +8,7 @@ import request from 'supertest';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { loadConfig, type AppConfig } from '@assetnest/config';
+import { sql } from 'drizzle-orm';
 import { seedRoles, type Database } from '@assetnest/db';
 import * as schema from '@assetnest/db/schema';
 import { AppModule } from '../app.module.js';
@@ -20,6 +21,7 @@ const migrationsFolder = resolve(here, '../../../../packages/db/migrations');
 
 let client: PGlite;
 let app: INestApplication;
+let testDb: Database;
 
 function asStringArray(value: string | string[] | undefined): string[] {
   if (value === undefined) return [];
@@ -61,7 +63,7 @@ beforeAll(async () => {
   client = new PGlite();
   const pgliteDb = drizzle(client, { schema });
   await migrate(pgliteDb, { migrationsFolder });
-  const testDb = pgliteDb as unknown as Database;
+  testDb = pgliteDb as unknown as Database;
   await seedRoles(testDb);
 
   const config: AppConfig = loadConfig(testEnv);
@@ -208,5 +210,18 @@ describe('custody (e2e)', () => {
       .send({ expectedVersion: 4 });
     expect(again.status).toBe(404);
     expect(again.body.code).toBe('ASSIGNMENT_NOT_FOUND');
+  });
+
+  it('writes transactional outbox events for assign/transfer/return', async () => {
+    const result = await testDb.execute<{ kind: string; schema_version: number }>(
+      sql`select kind, schema_version from outbox_events where aggregate_id = ${assetId} order by occurred_at`,
+    );
+    const kinds = result.rows.map((row) => row.kind);
+    expect(kinds).toContain('asset.assigned');
+    expect(kinds).toContain('asset.transferred');
+    expect(kinds).toContain('asset.returned');
+    for (const row of result.rows) {
+      expect(row.schema_version).toBe(1);
+    }
   });
 });

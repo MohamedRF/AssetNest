@@ -13,6 +13,7 @@ import type { Database } from '@assetnest/db';
 import { canTransition, type AssetStatus } from '@assetnest/domain';
 import { DATABASE } from '../common/tokens.js';
 import { writeAuditLog } from '../common/audit.js';
+import { writeOutboxEvent } from '../common/outbox.js';
 import { httpCode, isUniqueViolation } from '../common/problem.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import type { CreateAssetInput, ListAssetsQuery, StatusTransitionInput, UpdateAssetInput } from './dto.js';
@@ -206,6 +207,12 @@ export class AssetsService {
           action: 'asset.created',
           afterJson: this.publicAsset(asset),
         });
+        await writeOutboxEvent(tx, {
+          workspaceId: ctx.workspaceId,
+          kind: 'asset.created',
+          aggregateId: asset.id,
+          payload: { assetTag: asset.assetTag, displayName: asset.displayName, status: asset.status },
+        });
         return asset;
       });
 
@@ -310,6 +317,12 @@ export class AssetsService {
         beforeJson: this.publicAsset(current),
         afterJson: this.publicAsset(updated),
       });
+      await writeOutboxEvent(tx, {
+        workspaceId: ctx.workspaceId,
+        kind: 'asset.updated',
+        aggregateId: assetId,
+        payload: { fields: changes.map(([key]) => key) },
+      });
       return updated;
     });
 
@@ -338,7 +351,7 @@ export class AssetsService {
   }
 
   async archive(ctx: WorkspaceContext, actorId: string, assetId: string) {
-    const [updated] = await this.db.transaction(async (tx) => {
+    await this.db.transaction(async (tx) => {
       const [asset] = await tx
         .select()
         .from(assets)
@@ -362,6 +375,12 @@ export class AssetsService {
         action: 'asset.archived',
         beforeJson: { status: asset.status },
         afterJson: { status: 'archived' },
+      });
+      await writeOutboxEvent(tx, {
+        workspaceId: ctx.workspaceId,
+        kind: 'asset.archived',
+        aggregateId: assetId,
+        payload: { assetTag: asset.assetTag },
       });
       return [row!];
     });
@@ -398,31 +417,40 @@ export class AssetsService {
       );
     }
 
-    const [updated] = await this.db
-      .update(assets)
-      .set({ status: input.to, version: sql`${assets.version} + 1`, updatedAt: new Date() })
-      .where(
-        and(
-          eq(assets.id, assetId),
-          eq(assets.workspaceId, ctx.workspaceId),
-          eq(assets.version, input.expectedVersion),
-        ),
-      )
-      .returning();
-    if (!updated) {
-      throw httpCode(
-        HttpStatus.CONFLICT,
-        `Asset was modified elsewhere (your version ${input.expectedVersion}). Reload and retry.`,
-        'ASSET_VERSION_CONFLICT',
-      );
-    }
-    await this.db.insert(assetEvents).values({
-      workspaceId: ctx.workspaceId,
-      assetId,
-      actorId,
-      action: 'asset.status_changed',
-      beforeJson: { status: from },
-      afterJson: { status: input.to },
+    await this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(assets)
+        .set({ status: input.to, version: sql`${assets.version} + 1`, updatedAt: new Date() })
+        .where(
+          and(
+            eq(assets.id, assetId),
+            eq(assets.workspaceId, ctx.workspaceId),
+            eq(assets.version, input.expectedVersion),
+          ),
+        )
+        .returning();
+      if (!row) {
+        throw httpCode(
+          HttpStatus.CONFLICT,
+          `Asset was modified elsewhere (your version ${input.expectedVersion}). Reload and retry.`,
+          'ASSET_VERSION_CONFLICT',
+        );
+      }
+      await tx.insert(assetEvents).values({
+        workspaceId: ctx.workspaceId,
+        assetId,
+        actorId,
+        action: 'asset.status_changed',
+        beforeJson: { status: from },
+        afterJson: { status: input.to },
+      });
+      await writeOutboxEvent(tx, {
+        workspaceId: ctx.workspaceId,
+        kind: 'asset.status_changed',
+        aggregateId: assetId,
+        payload: { from, to: input.to },
+      });
+      return [row];
     });
     await writeAuditLog(this.db, {
       workspaceId: ctx.workspaceId,

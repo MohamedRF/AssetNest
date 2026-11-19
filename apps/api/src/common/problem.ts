@@ -1,4 +1,5 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import type { HttpStatus } from '@nestjs/common';
+import { HttpException } from '@nestjs/common';
 
 /** Problem-details exception with a stable machine code (see ProblemDetailsFilter). */
 export function httpCode(status: HttpStatus, message: string, code: string): HttpException {

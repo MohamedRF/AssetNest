@@ -7,7 +7,8 @@ import type { Database } from '@assetnest/db';
 import { APP_CONFIG, DATABASE } from '../common/tokens.js';
 import { generateToken, sha256Hex } from '../common/crypto.js';
 import { writeAuditLog } from '../common/audit.js';
-import { AuthService, type RequestMeta, type WorkspaceSummary } from '../auth/auth.service.js';
+import { AuthService } from '../auth/auth.service.js';
+import { type RequestMeta, type WorkspaceSummary } from '../auth/auth.service.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import type {
   ChangeRoleInput,

@@ -12,6 +12,7 @@ import {
 import type { Database } from '@assetnest/db';
 import { DATABASE } from '../common/tokens.js';
 import { writeAuditLog } from '../common/audit.js';
+import { writeOutboxEvent } from '../common/outbox.js';
 import { httpCode, isUniqueViolation } from '../common/problem.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import type { AssignInput, ReturnInput, TransferInput } from './dto.js';
@@ -117,6 +118,12 @@ export class CustodyService {
           beforeJson: { status: asset.status, custodianMembershipId: asset.custodianMembershipId },
           afterJson: { status: 'assigned', custodianMembershipId: member.id },
         });
+        await writeOutboxEvent(tx, {
+          workspaceId: ctx.workspaceId,
+          kind: 'asset.assigned',
+          aggregateId: assetId,
+          payload: { memberId: member.id, assignedAt: new Date().toISOString() },
+        });
         return { asset: row, assignment };
       });
 
@@ -197,6 +204,12 @@ export class CustodyService {
         beforeJson: { status: asset.status, custodianMembershipId: asset.custodianMembershipId },
         afterJson: { status: 'available', custodianMembershipId: null },
       });
+      await writeOutboxEvent(tx, {
+        workspaceId: ctx.workspaceId,
+        kind: 'asset.returned',
+        aggregateId: assetId,
+        payload: { returnedAt: new Date().toISOString() },
+      });
       return row;
     });
 
@@ -261,6 +274,12 @@ export class CustodyService {
         action: 'asset.transferred',
         beforeJson: { locationId: asset.locationId },
         afterJson: { locationId: location.id },
+      });
+      await writeOutboxEvent(tx, {
+        workspaceId: ctx.workspaceId,
+        kind: 'asset.transferred',
+        aggregateId: assetId,
+        payload: { fromLocationId: asset.locationId, toLocationId: location.id },
       });
       return row;
     });

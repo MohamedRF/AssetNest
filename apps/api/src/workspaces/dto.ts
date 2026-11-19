@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { WORKSPACE_ROLES, WORKSPACE_MODES } from '@assetnest/domain';
 
 export const slugSchema = z
   .string()

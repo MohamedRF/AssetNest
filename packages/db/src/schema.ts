@@ -171,6 +171,68 @@ export const maintenanceRecords = pgTable(
   (t) => [index('maintenance_records_workspace_asset_date_idx').on(t.workspaceId, t.assetId, t.performedAt)],
 );
 
+// ─── Transactional outbox & notification delivery ───────────────────────────
+
+export const outboxEvents = pgTable(
+  'outbox_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    aggregateId: uuid('aggregate_id').notNull(),
+    payloadJson: jsonb('payload_json').notNull().default({}),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('outbox_events_unpublished_idx')
+      .on(t.occurredAt)
+      .where(sql`${t.publishedAt} is null`),
+  ],
+);
+
+export const notificationPreferences = pgTable(
+  'notification_preferences',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id')
+      .notNull()
+      .references(() => memberships.id, { onDelete: 'cascade' }),
+    channel: text('channel').notNull(), // 'log' | 'email' | 'webhook'
+    event: text('event').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+  },
+  (t) => [uniqueIndex('notification_preferences_unique').on(t.workspaceId, t.memberId, t.channel, t.event)],
+);
+
+export const notificationDeliveries = pgTable(
+  'notification_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    eventKey: uuid('event_key').notNull(),
+    recipient: text('recipient').notNull(),
+    channel: text('channel').notNull(), // 'log' | 'email'
+    status: text('status').notNull().default('pending'), // 'pending' | 'sent' | 'failed' | 'skipped'
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [uniqueIndex('notification_deliveries_unique').on(t.eventKey, t.recipient, t.channel)],
+);
+
 // ─── Warranties ─────────────────────────────────────────────────────────────
 
 export const warranties = pgTable(

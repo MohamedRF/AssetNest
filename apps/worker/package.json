@@ -1,0 +1,29 @@
+{
+  "name": "@assetnest/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json && node --watch dist/main.js",
+    "start": "node dist/main.js",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "clean": "rimraf dist coverage"
+  },
+  "dependencies": {
+    "@assetnest/config": "workspace:*",
+    "@assetnest/db": "workspace:*",
+    "bullmq": "6.7.8",
+    "ioredis": "6.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.16",
+    "@types/node": "26.6.6",
+    "drizzle-orm": "0.45.4",
+    "rimraf": "6.1.4",
+    "typescript": "5.9.3",
+    "vitest": "5.1.1"
+  }
+}

@@ -161,6 +161,40 @@ services:
       start_period: 25s
 
   # ---------------------------------------------------------------------------
+  # Worker — drains the transactional outbox (BullMQ) and delivers notifications.
+  # Exits 0 with a clear notice when REDIS_URL is unset; otherwise relays.
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ../..
+      dockerfile: infrastructure/compose/Dockerfile.worker
+    restart: unless-stopped
+    profiles: ['app']
+    env_file:
+      - path: ../../.env
+        required: true
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: local
+      STORAGE_ROOT: /data/private-files
+    volumes:
+      - private_files:/data/private-files
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'pgrep', '-f', 'apps/worker/dist/main.js']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
   # Web — Vite static build served by Caddy, which also reverse-proxies
   # /api/* and /health/* to the api service (see Caddyfile). This is the only
   # service published on all interfaces (port 80; ${WEB_PORT} override).

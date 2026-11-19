@@ -181,3 +181,6 @@ jobs:
 
       - name: Build web image
         run: docker build -f infrastructure/compose/Dockerfile.web -t assetnest-web:ci .
+
+      - name: Build worker image
+        run: docker build -f infrastructure/compose/Dockerfile.worker -t assetnest-worker:ci .
