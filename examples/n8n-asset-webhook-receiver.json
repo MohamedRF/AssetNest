@@ -1,0 +1,100 @@
+{
+  "name": "AssetNest — Signed Webhook Receiver",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "assetnest",
+        "httpMethod": "POST",
+        "responseMode": "onReceived",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "a0000001-0000-4000-8000-000000000001",
+      "name": "AssetNest Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "assetnest-webhook-receiver"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify AssetNest HMAC-SHA256 signature BEFORE any business logic.\n// Secret: set WEBHOOK_SECRET in your n8n environment (Project Settings → Variables),\n// or hard-code here only for testing (never commit real secrets).\n// If your n8n restricts require(), allow the built-in: NODE_FUNCTION_ALLOW_BUILTIN=crypto\nconst { createHmac, timingSafeEqual } = require('crypto');\nconst SECRET = $env.WEBHOOK_SECRET;\nif (!SECRET) { throw new Error('WEBHOOK_SECRET is not set'); }\n\nconst item = $input.first();\nconst raw = item.binary?.data ? item.binary.data.toString('utf8') : JSON.stringify(item.json.body ?? item.json);\nconst header = item.json.headers['x-assetnest-signature'];\nconst deliveryId = item.json.headers['x-assetnest-delivery'];\n\nconst match = /^t=(\\d+),v1=([0-9a-f]{64})$/.exec(header ?? '');\nif (!match) { throw new Error('malformed signature header'); }\nconst [, t, digest] = match;\nif (Math.abs(Date.now() / 1000 - Number(t)) > 300) { throw new Error('timestamp skew too large (possible replay)'); }\nconst expected = createHmac('sha256', SECRET).update(`${t}.${raw}`).digest('hex');\nif (!timingSafeEqual(Buffer.from(digest, 'hex'), Buffer.from(expected, 'hex'))) {\n  throw new Error('signature mismatch');\n}\n\nconst body = JSON.parse(raw);\nreturn [{ json: {\n  verified: true,\n  deliveryId,\n  event: body.kind,\n  eventId: body.id,\n  occurredAt: body.occurredAt,\n  workspaceId: body.workspaceId,\n  resourceId: body.resourceId,\n  payload: body.payload,\n} }];"
+      },
+      "id": "a0000002-0000-4000-8000-000000000002",
+      "name": "Verify HMAC signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "asset.status_changed",
+              "operator": { "type": "string", "operation": "equals" },
+              "id": "c1"
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "a0000003-0000-4000-8000-000000000003",
+      "name": "Event is asset.status_changed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hooks.example.invalid/replace-with-your-ticket-system",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: `AssetNest: ${$json.event} on ${$json.resourceId}`, assetId: $json.resourceId, eventId: $json.eventId }) }}",
+        "options": {}
+      },
+      "id": "a0000004-0000-4000-8000-000000000004",
+      "name": "Open ticket (replace URL, then enable)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, -80],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "Import: Workflows → Import from file.\n1. Set WEBHOOK_SECRET (n8n Variables) to the AssetNest webhook signing secret.\n2. Activate the workflow; copy the Production URL (ends with /webhook/assetnest).\n3. Add an AssetNest webhook subscription (Integrations UI) pointing at that URL for the events you want, e.g. asset.created, asset.assigned, asset.status_changed, warranty.created.\n4. Send a test delivery from the UI — the execution should pass Verify HMAC and reach the (disabled) ticket node.\n5. Enable the ticket node after replacing its URL. Dedupe: use $json.deliveryId against n8n's static data if you need at-most-once handling."
+      },
+      "id": "a0000005-0000-4000-8000-000000000005",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 240]
+    }
+  ],
+  "connections": {
+    "AssetNest Webhook": {
+      "main": [[{ "node": "Verify HMAC signature", "type": "main", "index": 0 }]]
+    },
+    "Verify HMAC signature": {
+      "main": [[{ "node": "Event is asset.status_changed?", "type": "main", "index": 0 }]]
+    },
+    "Event is asset.status_changed?": {
+      "main": [[{ "node": "Open ticket (replace URL, then enable)", "type": "main", "index": 0 }], []]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "tags": []
+}
