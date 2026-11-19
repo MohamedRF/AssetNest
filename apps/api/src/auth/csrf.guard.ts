@@ -44,6 +44,13 @@ export class CsrfGuard implements CanActivate {
       // No session → the SessionGuard already rejected this request.
       return true;
     }
+    // Session cookies need the synchronizer token; bearer API tokens are not cookies → immune to CSRF.
+    if (request.auth.authType === 'api_token') {
+      return true;
+    }
+    if (!request.auth.sessionToken) {
+      return true;
+    }
     const provided = request.headers['x-csrf-token'];
     const headerValue = Array.isArray(provided) ? provided[0] : provided;
     if (!matchesCsrfToken(headerValue, request.auth.sessionToken, this.config.SESSION_SECRET)) {

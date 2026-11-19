@@ -19,7 +19,7 @@ import type { RequestWithAuth } from './session-auth.guard.js';
 export interface WorkspaceContext {
   workspaceId: string;
   membershipId: string;
-  role: WorkspaceRole;
+  role: WorkspaceRole | 'automation';
 }
 
 export type RequestWithWorkspace = RequestWithAuth & { workspace?: WorkspaceContext };
@@ -53,13 +53,47 @@ export class WorkspaceGuard implements CanActivate {
     const rawParam = request.params?.workspaceId;
     const workspaceId = Array.isArray(rawParam) ? rawParam[0] : rawParam;
     if (workspaceId === undefined) {
-      return true; // not a workspace-scoped route
+      if (request.auth?.authType === 'api_token') {
+        // Tokens are workspace-scoped; no token access to global routes.
+        throw new HttpException(
+          { message: 'API tokens cannot access this endpoint', code: 'TOKEN_SCOPE_EXCEEDED' },
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      return true; // not a workspace-scoped route (browser session)
     }
     if (!request.auth) {
       return true; // SessionGuard already rejected unauthenticated requests
     }
     if (!UUID.test(workspaceId)) {
       throw notFound();
+    }
+
+    // API tokens are bound to exactly one workspace and carry their own scopes —
+    // membership is not required, scope match is. This keeps automation usable
+    // after the human creator loses access, with independently managed scopes.
+    if (request.auth.authType === 'api_token') {
+      if (request.auth.tokenWorkspaceId !== workspaceId) {
+        throw notFound();
+      }
+      request.workspace = { workspaceId, membershipId: '', role: 'automation' };
+
+      const required = this.reflector.getAllAndOverride<Permission[]>(PERMISSIONS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      if (required && required.length > 0) {
+        const granted = new Set(request.auth.scopes ?? []);
+        for (const permission of required) {
+          if (!granted.has(permission)) {
+            throw new HttpException(
+              { message: 'Token does not grant this scope', code: 'INSUFFICIENT_SCOPE' },
+              HttpStatus.FORBIDDEN,
+            );
+          }
+        }
+      }
+      return true;
     }
 
     const [membership] = await this.db

@@ -16,6 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { AuditsModule } from './audits/audits.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { ExportsModule } from './exports/exports.module.js';
+import { ApiTokensModule } from './api-tokens/api-tokens.module.js';
 
 /** Application root module. */
 @Module({
@@ -33,6 +34,7 @@ import { ExportsModule } from './exports/exports.module.js';
     AuditsModule,
     ImportsModule,
     ExportsModule,
+    ApiTokensModule,
   ],
   controllers: [HealthController, VersionController],
 })

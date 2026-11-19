@@ -208,6 +208,31 @@ export const exports = pgTable(
   (t) => [index('exports_workspace_time_idx').on(t.workspaceId, t.createdAt)],
 );
 
+// ─── API tokens (automation credentials) ────────────────────────────────────
+
+export const apiTokens = pgTable(
+  'api_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    ownerId: uuid('owner_id').references(() => users.id, { onDelete: 'set null' }),
+    name: text('name').notNull(),
+    tokenPrefix: text('token_prefix').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    scopesJson: jsonb('scopes_json').notNull().default([]),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [
+    uniqueIndex('api_tokens_token_hash_unique').on(t.tokenHash),
+    index('api_tokens_workspace_idx').on(t.workspaceId),
+  ],
+);
+
 // ─── Transactional outbox & notification delivery ───────────────────────────
 
 export const outboxEvents = pgTable(
