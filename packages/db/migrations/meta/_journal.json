@@ -29,6 +29,20 @@
       "when": 1795021031033,
       "tag": "0003_invite_status_check",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795063827245,
+      "tag": "0004_warm_nova",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795063828662,
+      "tag": "0005_documents_status_check",
+      "breakpoints": true
     }
   ]
 }

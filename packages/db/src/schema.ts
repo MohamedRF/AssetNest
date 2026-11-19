@@ -1,4 +1,5 @@
 import {
+  bigint,
   date,
   index,
   integer,
@@ -120,6 +121,34 @@ export const sessions = pgTable(
     uniqueIndex('sessions_token_hash_unique').on(t.tokenHash),
     index('sessions_user_idx').on(t.userId),
     index('sessions_expires_idx').on(t.expiresAt),
+  ],
+);
+
+// ─── Documents (private attachments) ────────────────────────────────────────
+
+export const documents = pgTable(
+  'documents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(), // 'invoice' | 'warranty' | 'manual' | 'service_evidence' | 'photo' | 'other'
+    originalName: text('original_name').notNull(),
+    objectKey: text('object_key').notNull(),
+    mime: text('mime').notNull(),
+    size: bigint('size', { mode: 'number' }).notNull(),
+    checksum: text('checksum').notNull(),
+    uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
+    ...timestamps,
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('documents_object_key_unique').on(t.objectKey),
+    index('documents_workspace_asset_idx').on(t.workspaceId, t.assetId),
   ],
 );
 

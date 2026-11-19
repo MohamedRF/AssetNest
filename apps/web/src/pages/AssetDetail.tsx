@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { DocumentsCard } from '../components/DocumentsCard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/ui/toast';
@@ -250,6 +251,10 @@ export function AssetDetailPage() {
               </CardContent>
             </Card>
           </div>
+
+          {workspaceId && (
+            <DocumentsCard workspaceId={workspaceId} assetId={asset.id} canManage={canManage} />
+          )}
 
           <Card>
             <CardHeader>

@@ -8,10 +8,11 @@ import { AuthModule } from './auth/auth.module.js';
 import { WorkspacesModule } from './workspaces/workspaces.module.js';
 import { OrgModule } from './org/org.module.js';
 import { AssetsModule } from './assets/assets.module.js';
+import { DocumentsModule } from './documents/documents.module.js';
 
 /** Application root module. */
 @Module({
-  imports: [DatabaseModule, AuthModule, WorkspacesModule, OrgModule, AssetsModule],
+  imports: [DatabaseModule, AuthModule, WorkspacesModule, OrgModule, AssetsModule, DocumentsModule],
   controllers: [HealthController, VersionController],
 })
 export class AppModule implements OnApplicationShutdown {
