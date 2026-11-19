@@ -12,6 +12,7 @@ import { DocumentsModule } from './documents/documents.module.js';
 import { CustodyModule } from './custody/custody.module.js';
 import { WarrantiesModule } from './warranties/warranties.module.js';
 import { MaintenanceModule } from './maintenance/maintenance.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 /** Application root module. */
 @Module({
@@ -25,6 +26,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module.js';
     CustodyModule,
     MaintenanceModule,
     WarrantiesModule,
+    NotificationsModule,
   ],
   controllers: [HealthController, VersionController],
 })

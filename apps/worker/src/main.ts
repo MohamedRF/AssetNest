@@ -1,7 +1,8 @@
 import { loadConfig } from '@assetnest/config';
 import { createDatabase } from '@assetnest/db';
 import { drainOnce } from './relay.js';
-import { deliverNotificationLog } from './consumer.js';
+import { deliverOutboxEvent } from './consumer.js';
+import { createEmailTransport } from './email.js';
 
 /**
  * @assetnest/worker — outbox relay + async delivery consumer.
@@ -42,6 +43,7 @@ function parseRedisUrl(url: string): {
 
 const connection = parseRedisUrl(REDIS_URL);
 const { Queue, Worker } = await import('bullmq');
+const emailTransport = createEmailTransport(config);
 
 const queue = new Queue('assetnest-outbox', {
   connection,
@@ -57,13 +59,12 @@ const consumer = new Worker(
       kind: string;
       aggregateId: string;
     } & Record<string, unknown>;
-    await deliverNotificationLog(db, {
-      id: eventId,
-      workspaceId,
-      kind,
-      aggregateId,
-      payloadJson: payload,
-    });
+    await deliverOutboxEvent(
+      db,
+      { id: eventId, workspaceId, kind, aggregateId, payloadJson: payload },
+      emailTransport,
+      config,
+    );
   },
   { connection, concurrency: 5 },
 );
