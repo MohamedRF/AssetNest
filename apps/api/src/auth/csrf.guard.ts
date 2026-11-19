@@ -36,6 +36,11 @@ export class CsrfGuard implements CanActivate {
       return true;
     }
     const request = context.switchToHttp().getRequest<RequestWithAuth>();
+    // MCP tool/resource/prompt handlers run through the guard pipeline without
+    // an HTTP request; CSRF does not apply there (bearer tokens, no cookies).
+    if (!request || typeof request.method !== 'string') {
+      return true;
+    }
     if (SAFE_METHODS.has(request.method)) {
       return true;
     }

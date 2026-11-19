@@ -56,6 +56,12 @@ export class SessionGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<RequestWithAuth>();
+    // MCP tool/resource/prompt handlers run through the global guard pipeline
+    // with a non-HTTP context object (no .headers); the MCP module's verifier
+    // and per-tool scope checks authenticate them instead. Pass through.
+    if (!request || typeof request !== 'object' || !request.headers || typeof request.headers !== 'object') {
+      return true;
+    }
 
     // Bearer API token path: `Authorization: Bearer anst_...` — hashed, workspace-bound.
     const authHeader = request.headers.authorization;

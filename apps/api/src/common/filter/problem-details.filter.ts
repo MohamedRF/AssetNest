@@ -42,6 +42,16 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+
+    // MCP tool/resource/prompt handlers run through the Nest pipeline without
+    // an HTTP Request/Response pair — switchToHttp() then yields the MCP
+    // context object, which has no .status(). Writing a problem body is
+    // impossible there; rethrow so the MCP layer maps the error to its own
+    // protocol errors (HttpException → isError content, ProtocolError passthrough).
+    if (!response || typeof (response as Response).status !== 'function') {
+      throw exception;
+    }
+
     const instance = typeof request?.url === 'string' ? request.url : '';
     const requestId = CorrelationContext.getRequestId() ?? 'unknown';
 

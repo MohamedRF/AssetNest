@@ -50,6 +50,11 @@ export class WorkspaceGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<RequestWithWorkspace>();
+    // MCP tool/resource/prompt handlers run through the guard pipeline without
+    // an HTTP request; they have no :workspaceId and no role-based permissions.
+    if (!request || typeof request !== 'object') {
+      return true;
+    }
     const rawParam = request.params?.workspaceId;
     const workspaceId = Array.isArray(rawParam) ? rawParam[0] : rawParam;
     if (workspaceId === undefined) {

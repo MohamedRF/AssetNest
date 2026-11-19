@@ -14,6 +14,13 @@ import { ProblemDetailsFilter } from './common/filter/problem-details.filter.js'
  */
 export function configureApp(app: INestApplication, config: AppConfig): void {
   app.enableShutdownHooks();
+  // Accept up to 2 MiB JSON bodies (CSV imports carry inline text); the
+  // Express default of 100 kb was rejecting them with 413. The method is
+  // typed on NestExpressApplication, not INestApplication.
+  const withBodyParser = app as unknown as {
+    useBodyParser?: (type: 'json', options: { limit: string }) => void;
+  };
+  withBodyParser.useBodyParser?.('json', { limit: '2mb' });
 
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
