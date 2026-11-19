@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { DocumentsCard } from '../components/DocumentsCard';
+import { CustodyActions } from '../components/CustodyActions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/ui/toast';
@@ -149,10 +150,20 @@ export function AssetDetailPage() {
             description={asset.assetTag}
             actions={
               canManage && asset.status !== 'archived' ? (
-                <Button variant="outline" size="sm" onClick={() => setArchiveOpen(true)}>
-                  <Archive aria-hidden="true" className="h-4 w-4" />
-                  Archive
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {workspaceId && (
+                    <CustodyActions
+                      workspaceId={workspaceId}
+                      assetId={asset.id}
+                      assetVersion={asset.version}
+                      assetStatus={asset.status}
+                    />
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => setArchiveOpen(true)}>
+                    <Archive aria-hidden="true" className="h-4 w-4" />
+                    Archive
+                  </Button>
+                </div>
               ) : undefined
             }
           />

@@ -9,10 +9,19 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
 import { OrgModule } from './org/org.module.js';
 import { AssetsModule } from './assets/assets.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
+import { CustodyModule } from './custody/custody.module.js';
 
 /** Application root module. */
 @Module({
-  imports: [DatabaseModule, AuthModule, WorkspacesModule, OrgModule, AssetsModule, DocumentsModule],
+  imports: [
+    DatabaseModule,
+    AuthModule,
+    WorkspacesModule,
+    OrgModule,
+    AssetsModule,
+    DocumentsModule,
+    CustodyModule,
+  ],
   controllers: [HealthController, VersionController],
 })
 export class AppModule implements OnApplicationShutdown {
