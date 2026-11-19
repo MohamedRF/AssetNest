@@ -9,8 +9,7 @@ import { httpCode } from '../common/problem.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import type { CreateAuditInput, VerifyItemInput, CloseAuditInput } from './dto.js';
 
-const OBSERVATIONS = ['unobserved', 'present', 'missing', 'moved', 'extra'] as const;
-export type Observation = (typeof OBSERVATIONS)[number];
+export type Observation = 'unobserved' | 'present' | 'missing' | 'moved' | 'extra';
 
 @Injectable()
 export class AuditsService {

@@ -76,6 +76,31 @@ jobs:
       - name: Format check (prettier)
         run: pnpm format:check
 
+      # OpenAPI is generated from the NestJS controllers at boot; export it as a
+      # versioned artifact so the contract is reviewable on every change.
+      - name: Export OpenAPI document
+        run: |
+          SESSION_SECRET=$'ci_dummy_session_secret_32_bytes_long_xx' \
+          ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+          DATABASE_URL=postgresql://127.0.0.1:1/unused \
+          PUBLIC_APP_URL=http://localhost:5173 \
+          node apps/api/dist/main.js &
+          API_PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/api/docs-json -o openapi.json; then break; fi
+            sleep 1
+          done
+          kill $API_PID || true
+          test -s openapi.json && echo "openapi.json bytes: $(wc -c < openapi.json)"
+
+      - name: Upload OpenAPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-${{ github.sha }}
+          path: openapi.json
+          retention-days: 30
+          if-no-files-found: error
+
       # Fails the job when a CRITICAL advisory affects production dependencies.
       # High/moderate advisories still print to the log but do not gate.
       # Requires network access to the registry advisory endpoint.
