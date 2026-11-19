@@ -57,6 +57,20 @@
       "when": 1795065114733,
       "tag": "0007_warranties_dates_check",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795065337865,
+      "tag": "0008_secret_mongoose",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795065339376,
+      "tag": "0009_maintenance_checks",
+      "breakpoints": true
     }
   ]
 }

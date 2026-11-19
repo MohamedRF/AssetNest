@@ -11,6 +11,7 @@ import { AssetsModule } from './assets/assets.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { CustodyModule } from './custody/custody.module.js';
 import { WarrantiesModule } from './warranties/warranties.module.js';
+import { MaintenanceModule } from './maintenance/maintenance.module.js';
 
 /** Application root module. */
 @Module({
@@ -22,6 +23,7 @@ import { WarrantiesModule } from './warranties/warranties.module.js';
     AssetsModule,
     DocumentsModule,
     CustodyModule,
+    MaintenanceModule,
     WarrantiesModule,
   ],
   controllers: [HealthController, VersionController],

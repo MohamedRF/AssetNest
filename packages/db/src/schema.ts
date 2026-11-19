@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   date,
   index,
   integer,
@@ -122,6 +123,52 @@ export const sessions = pgTable(
     index('sessions_user_idx').on(t.userId),
     index('sessions_expires_idx').on(t.expiresAt),
   ],
+);
+
+// ─── Maintenance ────────────────────────────────────────────────────────────
+
+export const maintenancePlans = pgTable(
+  'maintenance_plans',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    cadence: text('cadence').notNull(), // 'monthly' | 'quarterly' | 'semiannual' | 'yearly' | 'once'
+    nextDueAt: date('next_due_at').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    index('maintenance_plans_workspace_due_idx').on(t.workspaceId, t.nextDueAt),
+    index('maintenance_plans_workspace_asset_idx').on(t.workspaceId, t.assetId),
+  ],
+);
+
+export const maintenanceRecords = pgTable(
+  'maintenance_records',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    planId: uuid('plan_id').references(() => maintenancePlans.id, { onDelete: 'set null' }),
+    performedAt: date('performed_at').notNull(),
+    vendorId: uuid('vendor_id').references(() => vendors.id, { onDelete: 'set null' }),
+    cost: numeric('cost', { precision: 18, scale: 2 }),
+    currency: text('currency'),
+    notes: text('notes'),
+    createdById: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index('maintenance_records_workspace_asset_date_idx').on(t.workspaceId, t.assetId, t.performedAt)],
 );
 
 // ─── Warranties ─────────────────────────────────────────────────────────────
