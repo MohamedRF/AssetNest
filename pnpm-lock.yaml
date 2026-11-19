@@ -38,6 +38,9 @@ importers:
       '@assetnest/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@assetnest/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@assetnest/db':
         specifier: workspace:*
         version: link:../../packages/db

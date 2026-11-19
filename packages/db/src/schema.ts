@@ -124,6 +124,30 @@ export const sessions = pgTable(
   ],
 );
 
+// ─── Warranties ─────────────────────────────────────────────────────────────
+
+export const warranties = pgTable(
+  'warranties',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    assetId: uuid('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    provider: text('provider').notNull(),
+    startsOn: date('starts_on').notNull(),
+    expiresOn: date('expires_on').notNull(),
+    details: text('details'),
+    ...timestamps,
+  },
+  (t) => [
+    index('warranties_workspace_asset_idx').on(t.workspaceId, t.assetId),
+    index('warranties_workspace_expiry_idx').on(t.workspaceId, t.expiresOn),
+  ],
+);
+
 // ─── Documents (private attachments) ────────────────────────────────────────
 
 export const documents = pgTable(

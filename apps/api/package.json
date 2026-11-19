@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@assetnest/config": "workspace:*",
+    "@assetnest/contracts": "workspace:*",
     "@assetnest/db": "workspace:*",
     "@assetnest/domain": "workspace:*",
     "@nestjs/common": "12.5.1",

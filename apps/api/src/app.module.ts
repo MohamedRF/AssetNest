@@ -10,6 +10,7 @@ import { OrgModule } from './org/org.module.js';
 import { AssetsModule } from './assets/assets.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
 import { CustodyModule } from './custody/custody.module.js';
+import { WarrantiesModule } from './warranties/warranties.module.js';
 
 /** Application root module. */
 @Module({
@@ -21,6 +22,7 @@ import { CustodyModule } from './custody/custody.module.js';
     AssetsModule,
     DocumentsModule,
     CustodyModule,
+    WarrantiesModule,
   ],
   controllers: [HealthController, VersionController],
 })
