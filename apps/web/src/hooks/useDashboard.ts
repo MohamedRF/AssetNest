@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import { assetsApi } from '../lib/assets-api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
 export interface DashboardStats {
@@ -54,7 +55,7 @@ export function useDashboard(): DashboardData {
   const assetsQuery = useQuery({
     queryKey: ['dashboard-assets-total', workspaceId],
     enabled: workspaceId !== undefined,
-    queryFn: () => api.get<{ total: number }>(`/workspaces/${workspaceId}/assets?pageSize=1`),
+    queryFn: () => assetsApi.list(workspaceId, { pageSize: 1 }),
     staleTime: 30_000,
   });
 

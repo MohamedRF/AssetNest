@@ -19,13 +19,38 @@
     },
     {
       "parameters": {
-        "jsCode": "// Verify AssetNest HMAC-SHA256 signature BEFORE any business logic.\n// Secret: set WEBHOOK_SECRET in your n8n environment (Project Settings → Variables),\n// or hard-code here only for testing (never commit real secrets).\n// If your n8n restricts require(), allow the built-in: NODE_FUNCTION_ALLOW_BUILTIN=crypto\nconst { createHmac, timingSafeEqual } = require('crypto');\nconst SECRET = $env.WEBHOOK_SECRET;\nif (!SECRET) { throw new Error('WEBHOOK_SECRET is not set'); }\n\nconst item = $input.first();\nconst raw = item.binary?.data ? item.binary.data.toString('utf8') : JSON.stringify(item.json.body ?? item.json);\nconst header = item.json.headers['x-assetnest-signature'];\nconst deliveryId = item.json.headers['x-assetnest-delivery'];\n\nconst match = /^t=(\\d+),v1=([0-9a-f]{64})$/.exec(header ?? '');\nif (!match) { throw new Error('malformed signature header'); }\nconst [, t, digest] = match;\nif (Math.abs(Date.now() / 1000 - Number(t)) > 300) { throw new Error('timestamp skew too large (possible replay)'); }\nconst expected = createHmac('sha256', SECRET).update(`${t}.${raw}`).digest('hex');\nif (!timingSafeEqual(Buffer.from(digest, 'hex'), Buffer.from(expected, 'hex'))) {\n  throw new Error('signature mismatch');\n}\n\nconst body = JSON.parse(raw);\nreturn [{ json: {\n  verified: true,\n  deliveryId,\n  event: body.kind,\n  eventId: body.id,\n  occurredAt: body.occurredAt,\n  workspaceId: body.workspaceId,\n  resourceId: body.resourceId,\n  payload: body.payload,\n} }];"
+        "jsCode": "const headers = $input.first().json.headers ?? {};\nconst header = headers['x-assetnest-signature'];\nconst deliveryId = headers['x-assetnest-delivery'];\nconst match = typeof header === 'string' && /^t=(\\d+),v1=([0-9a-f]{64})$/.exec(header);\nif (!match || typeof deliveryId !== 'string' || !deliveryId) throw new Error('Invalid AssetNest headers');\nconst [, timestamp, providedDigest] = match;\nif (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw new Error('AssetNest timestamp outside replay window');\n\nconst rawBytes = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst rawBody = rawBytes.toString('utf8');\n// The Crypto node hashes a UTF-8 string. Require an exact byte round trip.\nif (!rawBytes.equals(Buffer.from(rawBody, 'utf8'))) throw new Error('Invalid AssetNest body encoding');\nreturn [{ json: { deliveryId, providedDigest, signedBody: timestamp + '.' + rawBody } }];"
       },
       "id": "a0000002-0000-4000-8000-000000000002",
-      "name": "Verify HMAC signature",
+      "name": "Prepare signed body",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "binaryData": false,
+        "type": "SHA256",
+        "value": "={{ $json.signedBody }}",
+        "dataPropertyName": "expectedDigest",
+        "encoding": "hex"
+      },
+      "id": "a0000006-0000-4000-8000-000000000006",
+      "name": "Compute HMAC from credential",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { timingSafeEqual } = require('crypto');\nconst { deliveryId, providedDigest, expectedDigest, signedBody } = $input.first().json;\nconst isDigest = (value) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);\nif (!isDigest(providedDigest) || !isDigest(expectedDigest) || !timingSafeEqual(Buffer.from(providedDigest, 'hex'), Buffer.from(expectedDigest, 'hex'))) {\n  throw new Error('AssetNest signature mismatch');\n}\n\nlet body;\ntry {\n  body = JSON.parse(signedBody.slice(signedBody.indexOf('.') + 1));\n} catch {\n  throw new Error('Invalid AssetNest JSON');\n}\nif (!body || typeof body.id !== 'string' || typeof body.kind !== 'string') throw new Error('Invalid AssetNest event');\nreturn [{ json: { verified: true, deliveryId, event: body.kind, eventId: body.id, occurredAt: body.occurredAt, workspaceId: body.workspaceId, resourceId: body.resourceId, payload: body.payload } }];"
+      },
+      "id": "a0000007-0000-4000-8000-000000000007",
+      "name": "Verify HMAC signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 0]
     },
     {
       "parameters": {
@@ -51,7 +76,7 @@
       "name": "Event is asset.status_changed?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [480, 0]
+      "position": [960, 0]
     },
     {
       "parameters": {
@@ -66,12 +91,12 @@
       "name": "Open ticket (replace URL, then enable)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [720, -80],
+      "position": [1200, -80],
       "disabled": true
     },
     {
       "parameters": {
-        "content": "Import: Workflows → Import from file.\n1. Set WEBHOOK_SECRET (n8n Variables) to the AssetNest webhook signing secret.\n2. Activate the workflow; copy the Production URL (ends with /webhook/assetnest).\n3. Add an AssetNest webhook subscription (Integrations UI) pointing at that URL for the events you want, e.g. asset.created, asset.assigned, asset.status_changed, warranty.created.\n4. Send a test delivery from the UI — the execution should pass Verify HMAC and reach the (disabled) ticket node.\n5. Enable the ticket node after replacing its URL. Dedupe: use $json.deliveryId against n8n's static data if you need at-most-once handling."
+        "content": "1. Import into self-hosted n8n 2.22 or later with access to the crypto built-in module in the JavaScript task runner.\n2. Create a Crypto credential and place the AssetNest signing secret in its Hmac Secret field. Select that credential on Compute HMAC from credential.\n3. Activate the workflow and point the AssetNest webhook subscription at the Production URL. The Webhook node acknowledges immediately. The workflow verifies the signature before handling an event.\n4. Send a test delivery to check signature verification. The ticket branch handles only asset.status_changed.\n5. Configure the disabled ticket node before enabling it. Use the authenticated event ID as a durable idempotency key for business actions."
       },
       "id": "a0000005-0000-4000-8000-000000000005",
       "name": "Setup notes",
@@ -82,6 +107,12 @@
   ],
   "connections": {
     "AssetNest Webhook": {
+      "main": [[{ "node": "Prepare signed body", "type": "main", "index": 0 }]]
+    },
+    "Prepare signed body": {
+      "main": [[{ "node": "Compute HMAC from credential", "type": "main", "index": 0 }]]
+    },
+    "Compute HMAC from credential": {
       "main": [[{ "node": "Verify HMAC signature", "type": "main", "index": 0 }]]
     },
     "Verify HMAC signature": {
@@ -93,7 +124,10 @@
   },
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false
   },
   "pinData": {},
   "tags": []

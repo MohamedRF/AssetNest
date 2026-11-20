@@ -1,4 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Res } from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createReadStream } from 'node:fs';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -6,21 +14,32 @@ import { CurrentWorkspace } from '../auth/current-workspace.decorator.js';
 import { RequirePermissions } from '../auth/permissions.decorator.js';
 import type { PublicUser } from '../auth/auth.service.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
+import { ApiProblemResponse, openApiSchema } from '../common/openapi.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { ExportsService } from './exports.service.js';
 import { createExportSchema, type CreateExportInput } from './dto.js';
+import { createExportResponse, listExportsResponse } from './openapi.js';
 
+@ApiTags('Exports')
+@ApiSecurity('bearer')
+@ApiSecurity('cookieAuth')
+@ApiProblemResponse()
 @Controller({ path: 'workspaces/:workspaceId/exports', version: '1' })
 export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}
 
   @Get()
+  @ApiOperation({ operationId: 'listExports', description: 'Requires reports:read.' })
+  @ApiOkResponse({ schema: listExportsResponse })
   @RequirePermissions('reports:read')
   async list(@CurrentWorkspace() ctx: WorkspaceContext) {
     return { exports: await this.exportsService.listAll(ctx) };
   }
 
   @Post()
+  @ApiOperation({ operationId: 'createExport', description: 'Requires reports:read.' })
+  @ApiBody({ schema: openApiSchema(createExportSchema, 'input') })
+  @ApiCreatedResponse({ schema: createExportResponse })
   @RequirePermissions('reports:read')
   @HttpCode(HttpStatus.CREATED)
   async create(
@@ -32,6 +51,16 @@ export class ExportsController {
   }
 
   @Get(':exportId/download')
+  @ApiOperation({ operationId: 'downloadExport', description: 'Requires reports:read.' })
+  @ApiOkResponse({
+    description: 'CSV report as a private attachment.',
+    headers: {
+      'Content-Disposition': { schema: { type: 'string' } },
+      'Content-Length': { schema: { type: 'integer', minimum: 0 } },
+      'Cache-Control': { schema: { type: 'string' } },
+    },
+    content: { 'text/csv': { schema: { type: 'string' } } },
+  })
   @RequirePermissions('reports:read')
   async download(
     @CurrentWorkspace() ctx: WorkspaceContext,

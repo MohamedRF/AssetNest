@@ -1,5 +1,14 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
+import { ApiProblemResponse, openApiSchema } from '../common/openapi.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
 import { CurrentWorkspace } from '../auth/current-workspace.decorator.js';
@@ -8,6 +17,12 @@ import type { PublicUser } from '../auth/auth.service.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import { AssetsService } from './assets.service.js';
 import { QrService } from './qr.service.js';
+import {
+  ApiAssetListQuery,
+  assetDetailResponse,
+  assetHistoryResponse,
+  assetListResponse,
+} from './openapi.js';
 import {
   createAssetSchema,
   listAssetsQuerySchema,
@@ -19,6 +34,10 @@ import {
   type UpdateAssetInput,
 } from './dto.js';
 
+@ApiTags('Assets')
+@ApiSecurity('bearer')
+@ApiSecurity('cookieAuth')
+@ApiProblemResponse()
 @Controller({ path: 'workspaces/:workspaceId/assets', version: '1' })
 export class AssetsController {
   constructor(
@@ -27,6 +46,9 @@ export class AssetsController {
   ) {}
 
   @Get()
+  @ApiOperation({ operationId: 'listAssets' })
+  @ApiAssetListQuery()
+  @ApiOkResponse({ schema: assetListResponse })
   @RequirePermissions('assets:read')
   async list(
     @CurrentWorkspace() ctx: WorkspaceContext,
@@ -36,6 +58,9 @@ export class AssetsController {
   }
 
   @Post()
+  @ApiOperation({ operationId: 'createAsset' })
+  @ApiBody({ schema: openApiSchema(createAssetSchema, 'input') })
+  @ApiCreatedResponse({ schema: assetDetailResponse })
   @RequirePermissions('assets:write')
   @HttpCode(HttpStatus.CREATED)
   async create(
@@ -47,12 +72,17 @@ export class AssetsController {
   }
 
   @Get(':assetId')
+  @ApiOperation({ operationId: 'getAsset' })
+  @ApiOkResponse({ schema: assetDetailResponse })
   @RequirePermissions('assets:read')
   async get(@CurrentWorkspace() ctx: WorkspaceContext, @Param('assetId') assetId: string) {
     return this.assetsService.get(ctx, assetId);
   }
 
   @Patch(':assetId')
+  @ApiOperation({ operationId: 'updateAsset' })
+  @ApiBody({ schema: openApiSchema(updateAssetSchema, 'input') })
+  @ApiOkResponse({ schema: assetDetailResponse })
   @RequirePermissions('assets:write')
   async update(
     @CurrentWorkspace() ctx: WorkspaceContext,
@@ -64,6 +94,8 @@ export class AssetsController {
   }
 
   @Post(':assetId/archive')
+  @ApiOperation({ operationId: 'archiveAsset' })
+  @ApiOkResponse({ schema: assetDetailResponse })
   @RequirePermissions('assets:write')
   @HttpCode(HttpStatus.OK)
   async archive(
@@ -75,6 +107,9 @@ export class AssetsController {
   }
 
   @Post(':assetId/status-transition')
+  @ApiOperation({ operationId: 'transitionAssetStatus' })
+  @ApiBody({ schema: openApiSchema(statusTransitionSchema, 'input') })
+  @ApiOkResponse({ schema: assetDetailResponse })
   @RequirePermissions('assets:write')
   @HttpCode(HttpStatus.OK)
   async statusTransition(
@@ -87,12 +122,16 @@ export class AssetsController {
   }
 
   @Get(':assetId/history')
+  @ApiOperation({ operationId: 'getAssetHistory' })
+  @ApiOkResponse({ schema: assetHistoryResponse })
   @RequirePermissions('assets:read')
   async history(@CurrentWorkspace() ctx: WorkspaceContext, @Param('assetId') assetId: string) {
     return { events: await this.assetsService.history(ctx, assetId) };
   }
 
   @Get(':assetId/qr')
+  @ApiOperation({ operationId: 'getAssetQr' })
+  @ApiOkResponse({ content: { 'image/svg+xml': { schema: { type: 'string' } } } })
   @RequirePermissions('assets:read')
   async qr(
     @CurrentWorkspace() ctx: WorkspaceContext,

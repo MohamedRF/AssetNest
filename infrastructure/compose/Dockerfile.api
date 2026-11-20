@@ -18,10 +18,8 @@
 
 FROM node:24-alpine
 
-# Enable corepack for pnpm shims, and install the exact pnpm version pinned in
-# package.json ("packageManager": "pnpm@10.34.9"). Keep the two in sync.
-RUN corepack enable \
- && npm install --global pnpm@10.34.9 \
+# Install the version pinned in package.json ("packageManager": "pnpm@10.34.9").
+RUN npm install --global pnpm@10.34.9 \
  && npm cache clean --force
 
 WORKDIR /app
@@ -29,22 +27,22 @@ WORKDIR /app
 # Copy workspace manifests first so this layer caches until dependencies change.
 # pnpm's frozen-lockfile check validates the WHOLE workspace, so every importer's
 # package.json must exist — including apps/web's (sources are NOT copied).
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 
 # Copy sources the API depends on. apps/web is NOT copied — it builds separately
 # (see Dockerfile.web) and is served statically by Caddy.
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 COPY apps/web/package.json ./apps/web/package.json
+COPY apps/worker/package.json ./apps/worker/package.json
 
 # Install exactly what the lockfile says (frozen), scoped to the API and its
-# workspace dependencies, then build db (migrate.js + dist) before api. Build
+# workspace dependencies, then build those packages before the API. Build
 # tools (typescript) are devDependencies and get installed because NODE_ENV is
 # unset at this point; the runtime layer inherits them but that is the
 # trade-off of a single-stage, simple reference image.
 RUN pnpm install --frozen-lockfile --filter @assetnest/api... \
- && pnpm --filter @assetnest/db build \
- && pnpm --filter @assetnest/api build
+ && pnpm --filter @assetnest/api... build
 
 # Runtime configuration arrives via environment only (no secrets in the image).
 # NODE_ENV is intentionally NOT set here: .env decides it. For real production

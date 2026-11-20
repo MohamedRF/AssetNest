@@ -9,22 +9,20 @@
 
 FROM node:24-alpine
 
-RUN corepack enable \
- && npm install --global pnpm@10.34.9 \
+RUN npm install --global pnpm@10.34.9 \
  && npm cache clean --force
 
 WORKDIR /app
 
 # Same whole-workspace manifest set as the API image (frozen lockfile validation).
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/worker/ ./apps/worker/
 
 RUN pnpm install --frozen-lockfile --filter @assetnest/worker... \
- && pnpm --filter @assetnest/db build \
- && pnpm --filter @assetnest/worker build
+ && pnpm --filter @assetnest/worker... build
 
 USER node
 

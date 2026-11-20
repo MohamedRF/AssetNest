@@ -2,33 +2,19 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, PackagePlus, QrCode, Search, Upload } from 'lucide-react';
-import { ASSET_STATUSES, AssetStatusBadge, type AssetStatus } from '../components/AssetStatusBadge';
+import type { AssetListQuery, AssetPage } from '@assetnest/sdk';
+import { ASSET_STATUSES, AssetStatusBadge } from '../components/AssetStatusBadge';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/input';
-import { api } from '../lib/api';
+import { assetsApi } from '../lib/assets-api';
 import { cn } from '../lib/utils';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
-interface AssetRow {
-  id: string;
-  assetTag: string;
-  displayName: string;
-  serialNumber: string | null;
-  status: AssetStatus;
-  condition: string;
-  createdAt: string;
-}
-
-interface AssetsPage {
-  items: AssetRow[];
-  page: number;
-  pageSize: number;
-  total: number;
-}
+type AssetRow = AssetPage['items'][number];
 
 const PAGE_SIZE = 20;
 
@@ -47,9 +33,12 @@ export function AssetsList() {
     queryKey: ['assets', workspaceId, q, status, page],
     enabled: workspaceId !== undefined,
     queryFn: () =>
-      api.get<AssetsPage>(
-        `/workspaces/${workspaceId}/assets?page=${page}&pageSize=${PAGE_SIZE}${q ? `&q=${encodeURIComponent(q)}` : ''}${status ? `&status=${encodeURIComponent(status)}` : ''}`,
-      ),
+      assetsApi.list(workspaceId, {
+        page,
+        pageSize: PAGE_SIZE,
+        q: q || undefined,
+        status: (status || undefined) as AssetListQuery['status'],
+      }),
   });
 
   const total = query.data?.total ?? 0;

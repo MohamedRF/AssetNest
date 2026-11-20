@@ -17,6 +17,7 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
+    "@assetnest/ai": "workspace:*",
     "@assetnest/config": "workspace:*",
     "@assetnest/contracts": "workspace:*",
     "@assetnest/db": "workspace:*",

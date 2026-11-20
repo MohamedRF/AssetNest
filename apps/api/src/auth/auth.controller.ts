@@ -11,9 +11,18 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { AppConfig } from '@assetnest/config';
 import type { Request, Response } from 'express';
 import { APP_CONFIG } from '../common/tokens.js';
+import { ApiProblemResponse, openApiSchema } from '../common/openapi.js';
 import { Public } from '../common/public.decorator.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { deriveCsrfToken } from '../common/csrf.js';
@@ -24,7 +33,17 @@ import { AuthService } from './auth.service.js';
 import { CurrentAuth, CurrentUser } from './current-user.decorator.js';
 import type { AuthContext } from './session-auth.guard.js';
 import type { PublicUser } from './auth.service.js';
+import {
+  ApiSessionCsrf,
+  clearSessionCookieHeader,
+  okResponse,
+  sessionCookieHeader,
+  sessionIdentityResponse,
+  sessionsResponse,
+} from './openapi.js';
 
+@ApiTags('Authentication')
+@ApiProblemResponse()
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(
@@ -42,6 +61,9 @@ export class AuthController {
 
   @Public()
   @Post('register')
+  @ApiOperation({ operationId: 'register', summary: 'Create the bootstrap account and sign in' })
+  @ApiBody({ schema: openApiSchema(registerSchema, 'input') })
+  @ApiCreatedResponse({ schema: sessionIdentityResponse, headers: { 'Set-Cookie': sessionCookieHeader } })
   @HttpCode(HttpStatus.CREATED)
   async register(
     @Body(new ZodValidationPipe(registerSchema)) body: RegisterInput,
@@ -58,6 +80,9 @@ export class AuthController {
 
   @Public()
   @Post('login')
+  @ApiOperation({ operationId: 'login', summary: 'Create a browser session' })
+  @ApiBody({ schema: openApiSchema(loginSchema, 'input') })
+  @ApiOkResponse({ schema: sessionIdentityResponse, headers: { 'Set-Cookie': sessionCookieHeader } })
   @HttpCode(HttpStatus.OK)
   async login(
     @Body(new ZodValidationPipe(loginSchema)) body: LoginInput,
@@ -73,6 +98,10 @@ export class AuthController {
   }
 
   @Post('logout')
+  @ApiOperation({ operationId: 'logout' })
+  @ApiSecurity('cookieAuth')
+  @ApiSessionCsrf()
+  @ApiOkResponse({ schema: okResponse, headers: { 'Set-Cookie': clearSessionCookieHeader } })
   @HttpCode(HttpStatus.OK)
   async logout(@CurrentAuth() auth: AuthContext, @Res({ passthrough: true }) res: Response) {
     await this.authService.logout(auth.sessionId);
@@ -81,6 +110,9 @@ export class AuthController {
   }
 
   @Get('me')
+  @ApiOperation({ operationId: 'getCurrentUser' })
+  @ApiSecurity('cookieAuth')
+  @ApiOkResponse({ schema: sessionIdentityResponse })
   async me(@CurrentAuth() auth: AuthContext) {
     const workspaces = await this.authService.listWorkspaces(auth.user.id);
     return {
@@ -91,11 +123,18 @@ export class AuthController {
   }
 
   @Get('sessions')
+  @ApiOperation({ operationId: 'listSessions' })
+  @ApiSecurity('cookieAuth')
+  @ApiOkResponse({ schema: sessionsResponse })
   async sessions(@CurrentUser() user: PublicUser, @CurrentAuth() auth: AuthContext) {
     return { sessions: await this.authService.listSessions(user.id, auth.sessionId) };
   }
 
   @Delete('sessions/:id')
+  @ApiOperation({ operationId: 'revokeSession' })
+  @ApiSecurity('cookieAuth')
+  @ApiSessionCsrf()
+  @ApiOkResponse({ schema: okResponse, headers: { 'Set-Cookie': clearSessionCookieHeader } })
   @HttpCode(HttpStatus.OK)
   async revokeSession(
     @CurrentUser() user: PublicUser,

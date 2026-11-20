@@ -13,8 +13,7 @@
 FROM node:24-alpine AS build
 
 # pnpm pinned to the version in package.json ("packageManager": "pnpm@10.34.9").
-RUN corepack enable \
- && npm install --global pnpm@10.34.9 \
+RUN npm install --global pnpm@10.34.9 \
  && npm cache clean --force
 
 WORKDIR /app
@@ -22,16 +21,17 @@ WORKDIR /app
 # Workspace manifests first for layer caching. pnpm's frozen-lockfile check
 # validates the WHOLE workspace, so every importer's package.json must exist —
 # including apps/api's (its sources are NOT copied).
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json tsconfig.base.json ./
 
-# Web depends on no workspace packages today, but the lockfile validates the
-# whole workspace, so all package.json manifests must exist.
+# Web uses SDK declarations from the workspace. Include the other workspace
+# manifests for frozen-lockfile validation without copying their sources.
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 COPY apps/api/package.json ./apps/api/package.json
+COPY apps/worker/package.json ./apps/worker/package.json
 
 RUN pnpm install --frozen-lockfile --filter @assetnest/web... \
- && pnpm --filter @assetnest/web build
+ && pnpm --filter @assetnest/web... build
 
 # ---------------------------------------------------------------------------
 FROM caddy:2-alpine

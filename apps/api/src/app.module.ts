@@ -24,6 +24,8 @@ import { ImportsModule } from './imports/imports.module.js';
 import { ExportsModule } from './exports/exports.module.js';
 import { ApiTokensModule } from './api-tokens/api-tokens.module.js';
 import { WebhooksModule } from './webhooks/webhooks.module.js';
+import { AiModule } from './ai/ai.module.js';
+import { AiWorkflowsModule } from './ai/ai-workflows.module.js';
 
 /**
  * MCP (Model Context Protocol, revision 2026-07-28) is OPTIONAL and off by
@@ -94,6 +96,8 @@ const mcpRootModule = McpModule.forRootAsync({
     ExportsModule,
     ApiTokensModule,
     WebhooksModule,
+    AiModule,
+    AiWorkflowsModule,
   ],
   controllers: [HealthController, VersionController],
 })

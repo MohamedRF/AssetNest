@@ -1,4 +1,5 @@
 *.md
+!packages/sdk/README.md
 node_modules/
 dist/
 coverage/

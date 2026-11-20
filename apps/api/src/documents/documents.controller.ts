@@ -12,6 +12,15 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -19,17 +28,33 @@ import { CurrentWorkspace } from '../auth/current-workspace.decorator.js';
 import { RequirePermissions } from '../auth/permissions.decorator.js';
 import type { PublicUser } from '../auth/auth.service.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
+import { ApiProblemResponse } from '../common/openapi.js';
 import { httpCode } from '../common/problem.js';
 import { contentDispositionFilename } from './content-sniff.js';
 import { DOCUMENT_KINDS, documentKindSchema } from './dto.js';
 import { DocumentsService } from './documents.service.js';
+import {
+  documentDownloadContent,
+  listDocumentsResponse,
+  removeDocumentResponse,
+  uploadDocumentBody,
+  uploadDocumentResponse,
+} from './openapi.js';
 
 /** Private attachments: uploads validated by magic bytes, downloads always authorized. */
+@ApiTags('Documents')
+@ApiSecurity('bearer')
+@ApiSecurity('cookieAuth')
+@ApiProblemResponse()
 @Controller({ path: 'workspaces/:workspaceId', version: '1' })
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
   @Post('assets/:assetId/documents')
+  @ApiOperation({ operationId: 'uploadDocument', description: 'Requires documents:write.' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: uploadDocumentBody })
+  @ApiCreatedResponse({ schema: uploadDocumentResponse })
   @RequirePermissions('documents:write')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
@@ -64,12 +89,24 @@ export class DocumentsController {
   }
 
   @Get('assets/:assetId/documents')
+  @ApiOperation({ operationId: 'listAssetDocuments', description: 'Requires documents:read.' })
+  @ApiOkResponse({ schema: listDocumentsResponse })
   @RequirePermissions('documents:read')
   async listForAsset(@CurrentWorkspace() ctx: WorkspaceContext, @Param('assetId') assetId: string) {
     return { documents: await this.documentsService.listForAsset(ctx, assetId) };
   }
 
   @Get('documents/:documentId/download')
+  @ApiOperation({ operationId: 'downloadDocument', description: 'Requires documents:read.' })
+  @ApiOkResponse({
+    description: 'Private attachment with a content type detected at upload.',
+    headers: {
+      'Content-Disposition': { schema: { type: 'string' } },
+      'Content-Length': { schema: { type: 'integer', minimum: 0 } },
+      'Cache-Control': { schema: { type: 'string' } },
+    },
+    content: documentDownloadContent,
+  })
   @RequirePermissions('documents:read')
   async download(
     @CurrentWorkspace() ctx: WorkspaceContext,
@@ -86,6 +123,8 @@ export class DocumentsController {
   }
 
   @Delete('documents/:documentId')
+  @ApiOperation({ operationId: 'removeDocument', description: 'Requires documents:write.' })
+  @ApiOkResponse({ schema: removeDocumentResponse })
   @RequirePermissions('documents:write')
   @HttpCode(HttpStatus.OK)
   async remove(

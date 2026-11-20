@@ -141,6 +141,27 @@
       "when": 1795070575159,
       "tag": "0019_webhook_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795102155124,
+      "tag": "0020_ai_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795102761270,
+      "tag": "0021_ai_routes_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795103050264,
+      "tag": "0022_ai_approval_actions",
+      "breakpoints": true
     }
   ]
 }

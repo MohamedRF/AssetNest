@@ -14,6 +14,24 @@ const boolFromString = z
   .default('false')
   .transform((v) => v === 'true');
 
+const privateAiOrigins = z.string().default('').transform((value, ctx) => {
+  const origins = new Set<string>();
+  for (const entry of value.split(',').map((part) => part.trim()).filter(Boolean)) {
+    try {
+      const url = new URL(entry);
+      if (
+        !['https:', 'http:'].includes(url.protocol) ||
+        url.username || url.password || url.search || url.hash || url.pathname !== '/'
+      ) throw new Error('Expected an HTTP(S) origin');
+      origins.add(url.origin);
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'Expected comma-separated HTTP(S) origins without credentials or paths' });
+      return z.NEVER;
+    }
+  }
+  return [...origins];
+});
+
 const base64Key32 = z.string().refine(
   (v) => {
     try {
@@ -49,6 +67,7 @@ export const configSchema = z.object({
   SMTP_FROM: z.string().optional(),
 
   AI_ENABLED: boolFromString,
+  AI_PRIVATE_ORIGINS: privateAiOrigins,
   MCP_ENABLED: boolFromString,
   WEBHOOKS_ENABLED: boolFromString,
   /** Opt-in only: allow webhooks to private/loopback destinations (never in multi-tenant deployments). */

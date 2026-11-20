@@ -1,12 +1,15 @@
 import {
   bigint,
   boolean,
+  check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -276,6 +279,196 @@ export const webhookDeliveries = pgTable(
   (t) => [
     index('webhook_deliveries_subscription_time_idx').on(t.subscriptionId, t.createdAt),
     index('webhook_deliveries_event_idx').on(t.eventId, t.subscriptionId),
+  ],
+);
+
+// ─── AI provider connections ────────────────────────────────────────────────
+
+const aiProviderKinds = ['openai', 'anthropic', 'gemini', 'openai_compatible', 'ollama'] as const;
+const aiTasks = [
+  'invoice_extraction',
+  'image_tagging',
+  'natural_language_search',
+  'maintenance_assistant',
+  'asset_chat',
+] as const;
+const aiTaskValues = sql.raw(aiTasks.map((task) => `'${task}'`).join(', '));
+
+export const aiConnections = pgTable(
+  'ai_connections',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: aiProviderKinds }).notNull(),
+    name: text('name').notNull(),
+    endpoint: text('endpoint'),
+    credentialMode: text('credential_mode', { enum: ['api_key', 'none'] })
+      .notNull()
+      .default('none'),
+    encryptedCredential: text('encrypted_credential'),
+    enabled: boolean('enabled').notNull().default(true),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('ai_connections_workspace_name_unique').on(t.workspaceId, t.name),
+    uniqueIndex('ai_connections_workspace_id_unique').on(t.workspaceId, t.id),
+    check(
+      'ai_connections_kind_check',
+      sql`${t.kind} IN ('openai', 'anthropic', 'gemini', 'openai_compatible', 'ollama')`,
+    ),
+    check('ai_connections_name_check', sql`length(btrim(${t.name})) BETWEEN 1 AND 120`),
+    check(
+      'ai_connections_endpoint_check',
+      sql`(
+        (${t.kind} IN ('openai', 'anthropic', 'gemini') AND ${t.endpoint} IS NULL)
+        OR (${t.kind} IN ('openai_compatible', 'ollama') AND ${t.endpoint} IS NOT NULL AND length(btrim(${t.endpoint})) > 0)
+      )`,
+    ),
+    check(
+      'ai_connections_credential_check',
+      sql`(
+        (${t.credentialMode} = 'api_key' AND ${t.encryptedCredential} IS NOT NULL AND ${t.encryptedCredential} <> '')
+        OR (${t.kind} IN ('openai_compatible', 'ollama') AND ${t.credentialMode} = 'none' AND ${t.encryptedCredential} IS NULL)
+      )`,
+    ),
+  ],
+);
+
+export const aiModels = pgTable(
+  'ai_models',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id').notNull(),
+    connectionId: uuid('connection_id').notNull(),
+    modelId: text('model_id').notNull(),
+    label: text('label').notNull(),
+    capabilities: jsonb('capabilities').notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    verifiedConnectionUpdatedAt: timestamp('verified_connection_updated_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('ai_models_workspace_id_unique').on(t.workspaceId, t.id),
+    uniqueIndex('ai_models_workspace_connection_model_unique').on(t.workspaceId, t.connectionId, t.modelId),
+    foreignKey({
+      name: 'ai_models_workspace_connection_fk',
+      columns: [t.workspaceId, t.connectionId],
+      foreignColumns: [aiConnections.workspaceId, aiConnections.id],
+    }).onDelete('cascade'),
+    check('ai_models_model_id_check', sql`length(btrim(${t.modelId})) BETWEEN 1 AND 255`),
+    check('ai_models_label_check', sql`length(btrim(${t.label})) BETWEEN 1 AND 255`),
+    check('ai_models_capabilities_check', sql`jsonb_typeof(${t.capabilities}) = 'object'`),
+  ],
+);
+
+export const aiTaskRoutes = pgTable(
+  'ai_task_routes',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    task: text('task', { enum: aiTasks }).notNull(),
+    modelId: uuid('model_id').notNull(),
+    fallbackModelId: uuid('fallback_model_id'),
+    timeoutMs: integer('timeout_ms').notNull().default(10_000),
+    maxOutputTokens: integer('max_output_tokens').notNull().default(512),
+    dailyTokenBudget: integer('daily_token_budget').notNull().default(50_000),
+    allowProviderData: boolean('allow_provider_data').notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [
+    primaryKey({ name: 'ai_task_routes_workspace_task_pk', columns: [t.workspaceId, t.task] }),
+    // A model deletion must explicitly replace or remove routes that reference it.
+    foreignKey({
+      name: 'ai_task_routes_workspace_model_fk',
+      columns: [t.workspaceId, t.modelId],
+      foreignColumns: [aiModels.workspaceId, aiModels.id],
+    }),
+    foreignKey({
+      name: 'ai_task_routes_workspace_fallback_fk',
+      columns: [t.workspaceId, t.fallbackModelId],
+      foreignColumns: [aiModels.workspaceId, aiModels.id],
+    }),
+    check('ai_task_routes_task_check', sql`${t.task} IN (${aiTaskValues})`),
+    check(
+      'ai_task_routes_fallback_check',
+      sql`${t.fallbackModelId} IS NULL OR ${t.fallbackModelId} <> ${t.modelId}`,
+    ),
+    check('ai_task_routes_timeout_check', sql`${t.timeoutMs} BETWEEN 1000 AND 30000`),
+    check('ai_task_routes_output_limit_check', sql`${t.maxOutputTokens} BETWEEN 16 AND 4096`),
+    check('ai_task_routes_budget_check', sql`${t.dailyTokenBudget} BETWEEN 32 AND 1000000`),
+  ],
+);
+
+export const aiJobs = pgTable(
+  'ai_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id').notNull(),
+    task: text('task', { enum: aiTasks }).notNull(),
+    // Keep provenance if a user, model configuration, or source document is removed.
+    modelId: uuid('model_id'),
+    providerKind: text('provider_kind', { enum: aiProviderKinds }).notNull(),
+    providerModelId: text('provider_model_id').notNull(),
+    status: text('status', { enum: ['running', 'succeeded', 'failed'] })
+      .notNull()
+      .default('running'),
+    reservedTokens: integer('reserved_tokens').notNull(),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    errorCode: text('error_code'),
+    durationMs: integer('duration_ms'),
+    sourceDocumentId: uuid('source_document_id'),
+    output: jsonb('output'),
+    createdAt: timestamps.createdAt,
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('ai_jobs_workspace_task_created_idx').on(t.workspaceId, t.task, t.createdAt),
+    index('ai_jobs_workspace_id_idx').on(t.workspaceId, t.id),
+    uniqueIndex('ai_jobs_id_workspace_unique').on(t.id, t.workspaceId),
+    check('ai_jobs_task_check', sql`${t.task} IN (${aiTaskValues})`),
+    check(
+      'ai_jobs_provider_kind_check',
+      sql`${t.providerKind} IN ('openai', 'anthropic', 'gemini', 'openai_compatible', 'ollama')`,
+    ),
+    check('ai_jobs_provider_model_check', sql`length(btrim(${t.providerModelId})) BETWEEN 1 AND 255`),
+    check('ai_jobs_status_check', sql`${t.status} IN ('running', 'succeeded', 'failed')`),
+    check('ai_jobs_token_reservation_check', sql`${t.reservedTokens} BETWEEN 1 AND 1000000`),
+    check('ai_jobs_input_tokens_check', sql`${t.inputTokens} >= 0`),
+    check('ai_jobs_output_tokens_check', sql`${t.outputTokens} >= 0`),
+    check('ai_jobs_duration_check', sql`${t.durationMs} >= 0`),
+  ],
+);
+
+export const aiApprovalActions = pgTable(
+  'ai_approval_actions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id').notNull(),
+    jobId: uuid('ai_job_id').notNull(),
+    actorId: uuid('actor_id').notNull(),
+    decision: text('decision', { enum: ['approved'] }).notNull(),
+    assetIds: uuid('asset_ids').array().notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('ai_approval_actions_workspace_job_unique').on(t.workspaceId, t.jobId),
+    foreignKey({
+      name: 'ai_approval_actions_job_workspace_fk',
+      columns: [t.jobId, t.workspaceId],
+      foreignColumns: [aiJobs.id, aiJobs.workspaceId],
+    }).onDelete('cascade'),
+    check('ai_approval_actions_decision_check', sql`${t.decision} = 'approved'`),
+    check(
+      'ai_approval_actions_assets_check',
+      sql`cardinality(${t.assetIds}) BETWEEN 1 AND 100 AND array_position(${t.assetIds}, NULL) IS NULL`,
+    ),
   ],
 );
 

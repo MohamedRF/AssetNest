@@ -12,6 +12,7 @@ import { Label } from '../components/ui/label';
 import { Dialog } from '../components/ui/dialog';
 import { api, isApiError } from '../lib/api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
+import { assetsApi } from '../lib/assets-api';
 import { useToast } from '../components/ui/toast';
 
 type DerivedStatus = 'expired' | 'expiring_30' | 'expiring_90' | 'active';
@@ -26,12 +27,6 @@ interface WarrantyRow {
   expiresOn: string;
   details: string | null;
   derivedStatus: DerivedStatus;
-}
-
-interface AssetOption {
-  id: string;
-  assetTag: string;
-  displayName: string;
 }
 
 const EXPIRY_STYLE: Record<
@@ -68,7 +63,7 @@ export function Warranties() {
   const assetsQuery = useQuery({
     queryKey: ['assets-options', workspaceId],
     enabled: open && workspaceId !== undefined,
-    queryFn: () => api.get<{ items: AssetOption[] }>(`/workspaces/${workspaceId}/assets?pageSize=100`),
+    queryFn: () => assetsApi.list(workspaceId, { pageSize: 100 }),
   });
 
   const create = useMutation({

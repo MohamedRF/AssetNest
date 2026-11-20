@@ -12,6 +12,7 @@ import { Label } from '../components/ui/label';
 import { useToast } from '../components/ui/toast';
 import { api, isApiError } from '../lib/api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
+import { assetsApi } from '../lib/assets-api';
 
 export const ASSET_CONDITIONS = ['new', 'good', 'fair', 'poor', 'damaged', 'unknown'] as const;
 export type AssetCondition = (typeof ASSET_CONDITIONS)[number];
@@ -174,7 +175,7 @@ export function AssetForm() {
 
     setSubmitting(true);
     try {
-      const created = await api.post<{ id: string }>(`/workspaces/${workspaceId}/assets`, {
+      const created = await assetsApi.create(workspaceId, {
         assetTag: parsed.data.assetTag,
         displayName: parsed.data.displayName,
         serialNumber: parsed.data.serialNumber,

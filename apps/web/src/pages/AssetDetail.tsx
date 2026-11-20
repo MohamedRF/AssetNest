@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Archive, CalendarDays, CircleDollarSign, Hash, QrCode, Tag, Wrench } from 'lucide-react';
-import { AssetStatusBadge, type AssetStatus } from '../components/AssetStatusBadge';
+import type { AssetHistory } from '@assetnest/sdk';
+import { AssetStatusBadge } from '../components/AssetStatusBadge';
 import { PageHeader } from '../components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -12,37 +13,11 @@ import { CustodyActions } from '../components/CustodyActions';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/ui/toast';
-import { api, getApiBaseUrl, isApiError } from '../lib/api';
+import { getApiBaseUrl, isApiError } from '../lib/api';
+import { assetsApi } from '../lib/assets-api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
-interface AssetDetail {
-  id: string;
-  assetTag: string;
-  displayName: string;
-  serialNumber: string | null;
-  status: AssetStatus;
-  condition: string;
-  version: number;
-  purchasedAt: string | null;
-  amount: string | null;
-  currency: string | null;
-  notes: string | null;
-  tags: string[];
-  categoryId: string | null;
-  locationId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface HistoryEvent {
-  id: string;
-  action: string;
-  actorId: string | null;
-  beforeJson: unknown;
-  afterJson: unknown;
-  occurredAt: string;
-  correlationId: string;
-}
+type HistoryEvent = AssetHistory['events'][number];
 
 export function AssetDetailPage() {
   const { assetId } = useParams<{ assetId: string }>();
@@ -58,18 +33,17 @@ export function AssetDetailPage() {
   const assetQuery = useQuery({
     queryKey: ['asset', workspaceId, assetId],
     enabled: workspaceId !== undefined && assetId !== undefined,
-    queryFn: () => api.get<AssetDetail>(`/workspaces/${workspaceId}/assets/${assetId}`),
+    queryFn: () => assetsApi.get(workspaceId, assetId),
   });
 
   const historyQuery = useQuery({
     queryKey: ['asset-history', workspaceId, assetId],
     enabled: workspaceId !== undefined && assetId !== undefined,
-    queryFn: () =>
-      api.get<{ events: HistoryEvent[] }>(`/workspaces/${workspaceId}/assets/${assetId}/history`),
+    queryFn: () => assetsApi.history(workspaceId, assetId),
   });
 
   const archive = useMutation({
-    mutationFn: () => api.post(`/workspaces/${workspaceId}/assets/${assetId}/archive`),
+    mutationFn: () => assetsApi.archive(workspaceId, assetId),
     onSuccess: () => {
       toast({ title: 'Asset archived', variant: 'success' });
       void queryClient.invalidateQueries({ queryKey: ['asset', workspaceId, assetId] });

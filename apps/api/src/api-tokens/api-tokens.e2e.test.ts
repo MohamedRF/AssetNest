@@ -10,6 +10,7 @@ import type { INestApplication } from '@nestjs/common';
 import { loadConfig, type AppConfig } from '@assetnest/config';
 import { seedRoles, type Database } from '@assetnest/db';
 import * as schema from '@assetnest/db/schema';
+import { AssetNestClient } from '../../../../packages/sdk/src/index.js';
 import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap.js';
 import { APP_CONFIG, DATABASE } from '../common/tokens.js';
@@ -73,7 +74,7 @@ beforeAll(async () => {
     .compile();
   app = moduleRef.createNestApplication();
   configureApp(app, config);
-  await app.init();
+  await app.listen(0, '127.0.0.1');
 
   const register = await http()
     .post('/api/v1/auth/register')
@@ -113,6 +114,62 @@ afterAll(async () => {
 });
 
 describe('scoped API tokens (e2e)', () => {
+  it('the SDK consumes typed asset responses and preserves token scope boundaries', async () => {
+    const sdk = new AssetNestClient({ baseUrl: await app.getUrl(), token });
+    const page = await sdk.listAssets(workspaceId, { q: 'Token-read', pageSize: 1 });
+    expect(page).toMatchObject({ page: 1, pageSize: 1, total: 1 });
+    const asset = page.items[0]!;
+    expect(asset).toMatchObject({ assetTag: 'TOK-0001', serialNumber: null, status: 'available' });
+    await expect(sdk.getAsset(workspaceId, asset.id)).resolves.toMatchObject({
+      id: asset.id,
+      tags: [],
+      customValues: {},
+    });
+    await expect(sdk.getAssetQr(workspaceId, asset.id)).resolves.toContain('<svg');
+    await expect(
+      sdk.execute('getAssetQr', { path: { workspaceId, assetId: asset.id } }),
+    ).resolves.toContain('<svg');
+    await expect(
+      sdk.execute('listAssets', { path: { workspaceId }, query: { pageSize: 1, q: 'Token-read' } }),
+    ).resolves.toEqual(page);
+    await expect(sdk.getLiveness()).resolves.toEqual({ status: 'ok' });
+    await expect(sdk.listAssets(secondWorkspaceId)).rejects.toMatchObject({ status: 404 });
+    await expect(
+      sdk.createAsset(workspaceId, { assetTag: 'SDK-0001', displayName: 'Denied' }),
+    ).rejects.toMatchObject({ status: 403, body: { code: 'INSUFFICIENT_SCOPE' } });
+  });
+
+  it('the SDK sends JSON writes with optional defaults and required optimistic versions', async () => {
+    const minted = await http()
+      .post(`/api/v1/workspaces/${secondWorkspaceId}/api-tokens`)
+      .set('Cookie', owner.cookie)
+      .set('x-csrf-token', owner.csrfToken)
+      .send({ name: 'sdk-writer', scopes: ['assets:read', 'assets:write'] });
+    expect(minted.status).toBe(201);
+    const sdk = new AssetNestClient({ baseUrl: await app.getUrl(), token: minted.body.token as string });
+    const created = await sdk.createAsset(secondWorkspaceId, {
+      assetTag: 'SDK-0001',
+      displayName: 'SDK asset',
+      serialNumber: '00042',
+    });
+    expect(created).toMatchObject({
+      serialNumber: '00042',
+      status: 'available',
+      condition: 'good',
+      version: 1,
+    });
+    const updated = await sdk.updateAsset(secondWorkspaceId, created.id, {
+      expectedVersion: created.version,
+      serialNumber: null,
+    });
+    expect(updated).toMatchObject({ serialNumber: null, version: 2 });
+    await expect(
+      sdk.updateAsset(secondWorkspaceId, created.id, { expectedVersion: created.version, notes: 'stale' }),
+    ).rejects.toMatchObject({ status: 409, body: { code: 'ASSET_VERSION_CONFLICT' } });
+    const history = await sdk.getAssetHistory(secondWorkspaceId, created.id);
+    expect(history.events.map((event) => event.action)).toEqual(['asset.updated', 'asset.created']);
+  });
+
   it('an API token with assets:read can list assets', async () => {
     const res = await http()
       .get(`/api/v1/workspaces/${workspaceId}/assets`)

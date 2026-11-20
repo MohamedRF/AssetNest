@@ -13,8 +13,18 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import type { AppConfig } from '@assetnest/config';
+import { ApiProblemResponse, openApiSchema } from '../common/openapi.js';
 import { APP_CONFIG } from '../common/tokens.js';
 import { Public } from '../common/public.decorator.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
@@ -25,6 +35,7 @@ import type { PublicUser } from '../auth/auth.service.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 import { SESSION_COOKIE } from '../auth/auth.constants.js';
 import { sessionCookieOptions } from '../auth/session-cookie.js';
+import { ApiSessionCsrf, okResponse, sessionCookieHeader, sessionIdentityResponse } from '../auth/openapi.js';
 import {
   acceptInviteSchema,
   changeRoleSchema,
@@ -38,17 +49,37 @@ import {
   type UpdateWorkspaceInput,
 } from './dto.js';
 import { WorkspacesService } from './workspaces.service.js';
+import {
+  auditLogListResponse,
+  inviteCreatedResponse,
+  inviteListResponse,
+  memberListResponse,
+  roleChangedResponse,
+  workspaceCreatedResponse,
+  workspaceDetailsResponse,
+  workspaceListResponse,
+  workspaceUpdatedResponse,
+} from './openapi.js';
 
+@ApiTags('Workspaces')
+@ApiSecurity('cookieAuth')
+@ApiProblemResponse()
 @Controller({ path: 'workspaces', version: '1' })
 export class WorkspacesController {
   constructor(private readonly workspacesService: WorkspacesService) {}
 
   @Get()
+  @ApiOperation({ operationId: 'listWorkspaces' })
+  @ApiOkResponse({ schema: workspaceListResponse })
   async listMine(@CurrentUser() user: PublicUser) {
     return { workspaces: await this.workspacesService.listMine(user.id) };
   }
 
   @Post()
+  @ApiOperation({ operationId: 'createWorkspace' })
+  @ApiSessionCsrf()
+  @ApiBody({ schema: openApiSchema(createWorkspaceSchema, 'input') })
+  @ApiCreatedResponse({ schema: workspaceCreatedResponse })
   @HttpCode(HttpStatus.CREATED)
   async create(
     @CurrentUser() user: PublicUser,
@@ -59,11 +90,19 @@ export class WorkspacesController {
   }
 
   @Get(':workspaceId')
+  @ApiOperation({ operationId: 'getWorkspace' })
+  @ApiSecurity('bearer')
+  @ApiOkResponse({ schema: workspaceDetailsResponse })
   async get(@CurrentWorkspace() ctx: WorkspaceContext) {
     return this.workspacesService.get(ctx);
   }
 
   @Patch(':workspaceId')
+  @ApiOperation({ operationId: 'updateWorkspace', description: 'Requires workspace:manage.' })
+  @ApiSecurity('bearer')
+  @ApiSessionCsrf({ bearerSupported: true })
+  @ApiBody({ schema: openApiSchema(updateWorkspaceSchema, 'input') })
+  @ApiOkResponse({ schema: workspaceUpdatedResponse })
   @RequirePermissions('workspace:manage')
   async update(
     @CurrentWorkspace() ctx: WorkspaceContext,
@@ -74,11 +113,23 @@ export class WorkspacesController {
   }
 
   @Get(':workspaceId/members')
+  @ApiOperation({ operationId: 'listWorkspaceMembers' })
+  @ApiSecurity('bearer')
+  @ApiOkResponse({ schema: memberListResponse })
   async listMembers(@CurrentWorkspace() ctx: WorkspaceContext) {
     return { members: await this.workspacesService.listMembers(ctx) };
   }
 
   @Get(':workspaceId/audit-log')
+  @ApiOperation({ operationId: 'listWorkspaceAuditLog', description: 'Requires workspace:manage.' })
+  @ApiSecurity('bearer')
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+  })
+  @ApiQuery({ name: 'offset', required: false, schema: { type: 'integer', minimum: 0, default: 0 } })
+  @ApiOkResponse({ schema: auditLogListResponse })
   @RequirePermissions('workspace:manage')
   async auditLog(
     @CurrentWorkspace() ctx: WorkspaceContext,
@@ -91,6 +142,11 @@ export class WorkspacesController {
   }
 
   @Post(':workspaceId/invites')
+  @ApiOperation({ operationId: 'createWorkspaceInvite', description: 'Requires workspace:manage.' })
+  @ApiSecurity('bearer')
+  @ApiSessionCsrf({ bearerSupported: true })
+  @ApiBody({ schema: openApiSchema(createInviteSchema, 'input') })
+  @ApiCreatedResponse({ schema: inviteCreatedResponse })
   @RequirePermissions('workspace:manage')
   @HttpCode(HttpStatus.CREATED)
   async createInvite(
@@ -102,12 +158,19 @@ export class WorkspacesController {
   }
 
   @Get(':workspaceId/invites')
+  @ApiOperation({ operationId: 'listWorkspaceInvites', description: 'Requires workspace:manage.' })
+  @ApiSecurity('bearer')
+  @ApiOkResponse({ schema: inviteListResponse })
   @RequirePermissions('workspace:manage')
   async listInvites(@CurrentWorkspace() ctx: WorkspaceContext) {
     return { invites: await this.workspacesService.listInvites(ctx) };
   }
 
   @Delete(':workspaceId/invites/:inviteId')
+  @ApiOperation({ operationId: 'revokeWorkspaceInvite', description: 'Requires workspace:manage.' })
+  @ApiSecurity('bearer')
+  @ApiSessionCsrf({ bearerSupported: true })
+  @ApiOkResponse({ schema: okResponse })
   @RequirePermissions('workspace:manage')
   @HttpCode(HttpStatus.OK)
   async revokeInvite(
@@ -119,6 +182,13 @@ export class WorkspacesController {
   }
 
   @Post(':workspaceId/members/:userId/role')
+  @ApiOperation({
+    operationId: 'changeWorkspaceMemberRole',
+    description: 'Requires a workspace owner or administrator session and workspace:manage.',
+  })
+  @ApiSessionCsrf()
+  @ApiBody({ schema: openApiSchema(changeRoleSchema, 'input') })
+  @ApiOkResponse({ schema: roleChangedResponse })
   @RequirePermissions('workspace:manage')
   @HttpCode(HttpStatus.OK)
   async changeRole(
@@ -131,6 +201,12 @@ export class WorkspacesController {
   }
 
   @Delete(':workspaceId/members/:userId')
+  @ApiOperation({
+    operationId: 'removeWorkspaceMember',
+    description: 'Requires a workspace owner or administrator session and workspace:manage.',
+  })
+  @ApiSessionCsrf()
+  @ApiOkResponse({ schema: okResponse })
   @RequirePermissions('workspace:manage')
   @HttpCode(HttpStatus.OK)
   async removeMember(
@@ -143,6 +219,8 @@ export class WorkspacesController {
 }
 
 /** Invite acceptance lives at the auth boundary (@Public, sets a session cookie). */
+@ApiTags('Authentication')
+@ApiProblemResponse()
 @Controller({ path: 'auth', version: '1' })
 export class InviteAcceptController {
   constructor(
@@ -152,6 +230,9 @@ export class InviteAcceptController {
 
   @Public()
   @Post('invites/accept')
+  @ApiOperation({ operationId: 'acceptWorkspaceInvite' })
+  @ApiBody({ schema: openApiSchema(acceptInviteSchema, 'input') })
+  @ApiOkResponse({ schema: sessionIdentityResponse, headers: { 'Set-Cookie': sessionCookieHeader } })
   @HttpCode(HttpStatus.OK)
   async accept(
     @Body(new ZodValidationPipe(acceptInviteSchema)) body: AcceptInviteInput,

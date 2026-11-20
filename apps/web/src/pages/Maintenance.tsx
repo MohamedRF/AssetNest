@@ -12,6 +12,7 @@ import { Label } from '../components/ui/label';
 import { Dialog } from '../components/ui/dialog';
 import { api, isApiError } from '../lib/api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
+import { assetsApi } from '../lib/assets-api';
 import { useToast } from '../components/ui/toast';
 
 const CADENCES = ['monthly', 'quarterly', 'semiannual', 'yearly', 'once'] as const;
@@ -40,12 +41,6 @@ interface RecordRow {
   cost: string | null;
   currency: string | null;
   notes: string | null;
-}
-
-interface AssetOption {
-  id: string;
-  assetTag: string;
-  displayName: string;
 }
 
 const DUE_STYLE: Record<
@@ -92,7 +87,7 @@ export function Maintenance() {
   const assetsQuery = useQuery({
     queryKey: ['assets-options', workspaceId],
     enabled: planOpen && workspaceId !== undefined,
-    queryFn: () => api.get<{ items: AssetOption[] }>(`/workspaces/${workspaceId}/assets?pageSize=100`),
+    queryFn: () => assetsApi.list(workspaceId, { pageSize: 100 }),
   });
 
   const invalidate = () => {

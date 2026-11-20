@@ -22,6 +22,15 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "@assetnest/api#test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/sdk/src/**"],
+      "outputs": []
+    },
+    "@assetnest/api#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/sdk/src/**"]
+    },
     "clean": {
       "cache": false
     }

@@ -1,4 +1,4 @@
-# CI for AssetNest — runs on every push to main and every pull request.
+# CI for AssetNest — runs on pushes and pull requests targeting master or main.
 #
 # What this enforces (mirrors the release gates in ROADMAP.md / TESTING_QA.md):
 #   baseline   — install (frozen), lint, typecheck, unit/integration tests (PGlite,
@@ -17,9 +17,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
-    branches: [main]
+    branches: [master, main]
 
 # Re-running CI on a branch cancels the superseded run.
 concurrency:
@@ -62,6 +62,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Export OpenAPI and check generated SDK types
+        run: pnpm sdk:check
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -76,28 +79,22 @@ jobs:
       - name: Format check (prettier)
         run: pnpm format:check
 
-      # OpenAPI is generated from the NestJS controllers at boot; export it as a
-      # versioned artifact so the contract is reviewable on every change.
-      - name: Export OpenAPI document
-        run: |
-          SESSION_SECRET=$'ci_dummy_session_secret_32_bytes_long_xx' \
-          ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
-          DATABASE_URL=postgresql://127.0.0.1:1/unused \
-          PUBLIC_APP_URL=http://localhost:5173 \
-          node apps/api/dist/main.js &
-          API_PID=$!
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/docs-json -o openapi.json; then break; fi
-            sleep 1
-          done
-          kill $API_PID || true
-          test -s openapi.json && echo "openapi.json bytes: $(wc -c < openapi.json)"
+      - name: Pack SDK
+        run: pnpm --filter @assetnest/sdk pack --pack-destination "$PWD/dist"
 
       - name: Upload OpenAPI artifact
         uses: actions/upload-artifact@v4
         with:
           name: openapi-${{ github.sha }}
-          path: openapi.json
+          path: dist/openapi.json
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload SDK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-${{ github.sha }}
+          path: dist/assetnest-sdk-*.tgz
           retention-days: 30
           if-no-files-found: error
 
@@ -148,7 +145,7 @@ jobs:
 
       # migrate.js reads DATABASE_URL and applies packages/db/migrations.
       - name: Build @assetnest/db
-        run: pnpm --filter @assetnest/db build
+        run: pnpm --filter @assetnest/db... build
 
       - name: Apply migrations to PostgreSQL
         run: pnpm --filter @assetnest/db migrate

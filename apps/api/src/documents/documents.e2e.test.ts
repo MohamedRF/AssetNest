@@ -14,7 +14,7 @@ import { loadConfig, type AppConfig } from '@assetnest/config';
 import { seedRoles, type Database } from '@assetnest/db';
 import * as schema from '@assetnest/db/schema';
 import { AppModule } from '../app.module.js';
-import { configureApp } from '../bootstrap.js';
+import { configureApp, createOpenApiDocument } from '../bootstrap.js';
 import { APP_CONFIG, DATABASE } from '../common/tokens.js';
 import { SESSION_COOKIE } from '../auth/auth.constants.js';
 
@@ -109,6 +109,30 @@ afterAll(async () => {
 });
 
 describe('documents (e2e)', () => {
+  it('exposes the multipart upload and streamed download in OpenAPI', () => {
+    const { paths } = createOpenApiDocument(app);
+    const upload = paths['/api/v1/workspaces/{workspaceId}/assets/{assetId}/documents']?.post;
+    expect(upload?.requestBody).toMatchObject({
+      required: true,
+      content: {
+        'multipart/form-data': {
+          schema: {
+            required: ['file', 'kind'],
+            properties: {
+              file: { type: 'string', format: 'binary' },
+              kind: { type: 'string' },
+            },
+          },
+        },
+      },
+    });
+    const download = paths['/api/v1/workspaces/{workspaceId}/documents/{documentId}/download']?.get;
+    expect(download?.responses['200']).toMatchObject({
+      content: { 'application/pdf': { schema: { type: 'string', format: 'binary' } } },
+    });
+    expect(download?.responses['200']).not.toHaveProperty('content.application/json');
+  });
+
   it('uploads a PDF with magic-byte verification and returns its metadata', async () => {
     const res = await http()
       .post(`/api/v1/workspaces/${workspaceId}/assets/${assetId}/documents`)

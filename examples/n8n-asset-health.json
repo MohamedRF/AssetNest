@@ -16,7 +16,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.ASSETNEST_URL }}/api/v1/workspaces/{{ $env.ASSETNEST_WORKSPACE_ID }}/assets?status=lost&pageSize=50",
+        "url": "https://assetnest.example.invalid/api/v1/workspaces/WORKSPACE_UUID/assets?status=lost&pageSize=10",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -30,7 +30,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.ASSETNEST_URL }}/api/v1/workspaces/{{ $env.ASSETNEST_WORKSPACE_ID }}/warranties?expiringDays=30",
+        "url": "https://assetnest.example.invalid/api/v1/workspaces/WORKSPACE_UUID/warranties?expiringDays=30",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
@@ -43,7 +43,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lost = $items('Lost assets')[0]?.json?.items ?? [];\nconst warranties = $items('Warranties expiring ≤30d')[0]?.json ?? [];\nconst expiring = Array.isArray(warranties) ? warranties : (warranties.items ?? []);\nconst lines = [];\nlines.push(`AssetNest digest — ${new Date().toISOString().slice(0, 10)}`);\nlines.push(`Lost assets: ${lost.length}`);\nfor (const a of lost.slice(0, 10)) lines.push(` - ${a.assetTag}: ${a.displayName} (${a.status})`);\nlines.push(`Warranties expiring within 30 days: ${expiring.length}`);\nfor (const w of expiring.slice(0, 10)) lines.push(` - asset ${w.assetId}: ${w.provider} expires ${w.expiresOn} (${w.derivedStatus ?? 'unknown'})`);\nreturn [{ json: { digest: lines.join('\\n'), lostCount: lost.length, expiringCount: expiring.length } }];"
+        "jsCode": "const lost = $('Lost assets').first().json;\nconst { warranties } = $('Warranties expiring ≤30d').first().json;\nif (!Array.isArray(lost.items) || !Number.isInteger(lost.total) || lost.total < 0 || !Array.isArray(warranties)) {\n  throw new Error('Unexpected AssetNest response');\n}\nconst expiring = warranties.filter((warranty) => warranty.derivedStatus === 'expiring_30');\nconst lines = [\n  'AssetNest digest — ' + new Date().toISOString().slice(0, 10),\n  'Lost assets: ' + lost.total,\n];\nfor (const asset of lost.items.slice(0, 10)) lines.push(` - ${asset.assetTag}: ${asset.displayName} (${asset.status})`);\nlines.push('Warranties expiring within 30 days: ' + expiring.length);\nfor (const warranty of expiring.slice(0, 10)) lines.push(` - ${warranty.assetTag}: ${warranty.provider} expires ${warranty.expiresOn}`);\nreturn [{ json: { digest: lines.join('\\n'), lostCount: lost.total, expiringCount: expiring.length } }];"
       },
       "id": "b0000004-0000-4000-8000-000000000004",
       "name": "Build digest",
@@ -69,7 +69,7 @@
     },
     {
       "parameters": {
-        "content": "Setup:\n1. Env vars: ASSETNEST_URL (e.g. https://assets.example.com), ASSETNEST_WORKSPACE_ID.\n2. n8n credential httpHeaderAuth: Name = Authorization, Value = Bearer anst_... (token from the AssetNest Integrations UI with scopes assets:read + reports:read).\n3. Activate; check the first execution. Replace the Notify node URL (Slack incoming webhook, Discord, email API...) and enable it."
+        "content": "1. Set your AssetNest URL and workspace UUID in both HTTP Request URLs.\n2. Create a Header Auth credential with Name = Authorization and Value = Bearer <token>. Use a workspace token with assets:read and select the credential on both HTTP Request nodes.\n3. Execute manually to check the digest. Then replace the Notify URL, enable it, and activate the schedule."
       },
       "id": "b0000006-0000-4000-8000-000000000006",
       "name": "Setup notes",
