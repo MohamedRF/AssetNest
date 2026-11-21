@@ -16,7 +16,7 @@
 # No secrets are copied into the image; all configuration arrives via environment
 # variables at runtime (see compose.yaml / .env).
 
-FROM node:24-alpine
+FROM node:26-alpine
 
 # OCI metadata (overridden at release time by docker/metadata-action).
 ARG VERSION=0.1.0

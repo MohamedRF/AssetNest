@@ -10,7 +10,7 @@
 # No secrets are required at build time (the SPA has no build-time API keys);
 # any VITE_* variables would be baked in, so do NOT pass secrets as build args.
 
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 
 # pnpm pinned to the version in package.json ("packageManager": "pnpm@10.34.9").
 RUN npm install --global pnpm@10.34.9 \
