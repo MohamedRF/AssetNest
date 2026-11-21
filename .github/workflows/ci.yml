@@ -1,13 +1,13 @@
 # CI for AssetNest — runs on pushes and pull requests targeting master or main.
 #
-# What this enforces (mirrors the release gates in ROADMAP.md / TESTING_QA.md):
+# Checks enforced by this workflow:
 #   baseline   — install (frozen), lint, typecheck, unit/integration tests (PGlite,
 #                no services), production build, prettier format check, and a
 #                dependency audit that FAILS on critical advisories in prod deps.
 #   migrations — applies packages/db migrations to a real PostgreSQL 17 service to
 #                prove the chain works against genuine Postgres (PGlite is a
 #                compatible reimplementation, not the real thing).
-#   docker     — validates the compose files and builds both images (no push, no
+#   docker     — validates the compose files and builds all images (no push, no
 #                registry, no secrets).
 #
 # No secrets are required. No deployment steps. Image builds/pushes to registries
@@ -68,10 +68,10 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # Tests run against PGlite (in-process Postgres-compatible engine), so no
-      # service containers are needed here. The migrations job covers real PG.
+      # Run PGlite suites one workspace package at a time to bound concurrent
+      # database initialization. The migrations job covers real PostgreSQL.
       - name: Test
-        run: pnpm test
+        run: pnpm test --concurrency=1
 
       - name: Build (turbo)
         run: pnpm build

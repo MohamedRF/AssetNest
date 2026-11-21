@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterAll } from 'vitest';
+import { describe, expect, it, beforeAll, beforeEach, afterAll } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -47,13 +47,14 @@ async function insertOutboxEvent(workspaceId: string, kind = 'asset.assigned') {
   return id;
 }
 
+beforeAll(async () => {
+  client = new PGlite();
+  const pgliteDb = drizzle(client, { schema });
+  await migrate(pgliteDb, { migrationsFolder });
+  db = pgliteDb as unknown as Database;
+}, 90_000);
+
 beforeEach(async () => {
-  if (!client) {
-    client = new PGlite();
-    const pgliteDb = drizzle(client, { schema });
-    await migrate(pgliteDb, { migrationsFolder });
-    db = pgliteDb as unknown as Database;
-  }
   await db.execute(sql`truncate outbox_events`);
   await db.execute(sql`truncate notification_deliveries`);
 });
