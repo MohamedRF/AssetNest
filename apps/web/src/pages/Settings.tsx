@@ -24,6 +24,7 @@ import { api, isApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 import { AiConnectionsCard } from './AiConnectionsCard';
+import { WorkspacePoliciesCard } from './WorkspacePoliciesCard';
 
 interface SettingsSection {
   title: string;
@@ -235,6 +236,10 @@ export function Settings() {
             </CardContent>
           </Card>
         ))}
+
+        {(workspace?.role === 'owner' || workspace?.role === 'admin') && (
+          <WorkspacePoliciesCard key={workspace.id} workspaceId={workspace.id} />
+        )}
 
         <AiConnectionsCard
           key={workspace?.id}

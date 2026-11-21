@@ -74,14 +74,16 @@ export class WorkspaceMcpTools {
       });
       const expiring = await this.warranties.list(id.wsCtx, { expiringDays: 90 });
       const plans = await this.maintenance.listPlans(id.wsCtx);
-      const activity = await this.workspaces.listAuditLog(id.wsCtx, 8, 0);
+      const activity = ctx.authInfo?.scopes.includes('audit:read')
+        ? await this.workspaces.listAuditLog(id.wsCtx, 8, 0)
+        : null;
       const expiringCount = Array.isArray(expiring) ? expiring.length : 0;
       return {
         workspaceId: id.wsCtx.workspaceId,
         assets: { total: (assets as { total?: number }).total ?? null },
         warrantiesExpiring90d: expiringCount,
         maintenancePlans: Array.isArray(plans) ? plans.length : 0,
-        recentActivity: Array.isArray(activity) ? activity.length : 0,
+        recentActivity: activity?.length ?? null,
       };
     });
   }
@@ -93,7 +95,7 @@ export class WorkspaceMcpTools {
       limit: z.number().int().min(1).max(100).optional(),
       offset: z.number().int().min(0).optional(),
     }),
-    scopes: ['reports:read'],
+    scopes: ['audit:read'],
     annotations: { readOnlyHint: true },
   })
   async auditLog(input: { limit?: number; offset?: number }, ctx: McpContext) {

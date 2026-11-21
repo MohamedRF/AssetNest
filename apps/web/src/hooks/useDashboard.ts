@@ -1,3 +1,4 @@
+import type { OperationResult } from '@assetnest/sdk';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { assetsApi } from '../lib/assets-api';
@@ -38,19 +39,16 @@ interface WarrantyList {
 interface PlanList {
   plans: Array<{ id: string; dueState: string }>;
 }
-interface AuditLogList {
-  entries: Array<{ id: string; action: string; resource: string; occurred_at?: string; occurredAt?: string }>;
-}
-
 /**
  * Live operational summary. `openAudits` stays a fixed honest zero until
  * Phase 3 ships audits. Recent activity reads the workspace audit log
- * (owner/admin only — regular members get a polite empty note).
+ * (owner/admin/auditor only — regular members get a polite empty note).
  */
 export function useDashboard(): DashboardData {
   const { workspace } = useSelectedWorkspace();
   const workspaceId = workspace?.id;
-  const canSeeAuditLog = workspace?.role === 'owner' || workspace?.role === 'admin';
+  const canSeeAuditLog =
+    workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'auditor';
 
   const assetsQuery = useQuery({
     queryKey: ['dashboard-assets-total', workspaceId],
@@ -76,7 +74,8 @@ export function useDashboard(): DashboardData {
   const activityQuery = useQuery({
     queryKey: ['dashboard-audit-log', workspaceId],
     enabled: workspaceId !== undefined && canSeeAuditLog,
-    queryFn: () => api.get<AuditLogList>(`/workspaces/${workspaceId}/audit-log?limit=8`),
+    queryFn: () =>
+      api.get<OperationResult<'listWorkspaceAuditLog'>>(`/workspaces/${workspaceId}/audit-log?limit=8`),
     staleTime: 15_000,
   });
 
@@ -91,12 +90,7 @@ export function useDashboard(): DashboardData {
 
   const isPlaceholder = assetsQuery.isError && warrantiesQuery.isError && plansQuery.isError;
 
-  const recentActivity: ActivityEntry[] = (activityQuery.data?.entries ?? []).map((entry) => ({
-    id: entry.id,
-    action: entry.action,
-    resource: entry.resource,
-    occurredAt: entry.occurredAt ?? entry.occurred_at ?? '',
-  }));
+  const recentActivity = activityQuery.data?.entries ?? [];
 
   return { stats, recentActivity, canSeeAuditLog, isPlaceholder };
 }

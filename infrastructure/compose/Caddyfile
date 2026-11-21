@@ -2,7 +2,7 @@
 #
 # What this does:
 #   1. Serves the Vite production build from /srv/www (copied in by the Dockerfile).
-#   2. Proxies anything under /api/* and /health/* to the `api` compose service.
+#   2. Proxies /api/* and the /health/live alias to the `api` compose service.
 #   3. Falls back to index.html for client-side routes (SPA).
 #
 # TLS: when you point a real hostname at this host, replace `:80` below with your
@@ -15,6 +15,17 @@
 # They are used instead of bare `try_files` + `reverse_proxy` directives because
 # Caddy's default directive order runs try_files (rewrite phase) before
 # reverse_proxy, which would rewrite /api/* to /index.html and break the API.
+{
+	log {
+		format filter {
+			wrap console
+			request>uri regexp "[?].*$" ""
+			request>headers>Referer delete
+			request>headers>X-Csrf-Token delete
+			resp_headers>Location delete
+		}
+	}
+}
 
 :80 {
 	# Static files root (Vite build output copied to /srv/www by Dockerfile.web)
@@ -51,10 +62,15 @@
 		-Server
 	}
 
-	# Access log to stdout (collected by Docker; do not log request bodies —
-	# uploaded documents and secrets must never appear in logs).
+	# Keep paths and status codes, without callback, invite or session data.
 	log {
 		output stdout
-		format console
+		format filter {
+			wrap console
+			request>uri regexp "[?].*$" ""
+			request>headers>Referer delete
+			request>headers>X-Csrf-Token delete
+			resp_headers>Location delete
+		}
 	}
 }

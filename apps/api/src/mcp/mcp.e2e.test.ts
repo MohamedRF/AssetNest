@@ -158,7 +158,7 @@ beforeAll(async () => {
     .set('x-csrf-token', ownerCsrf)
     .send({
       name: 'mcp-writer',
-      scopes: ['assets:read', 'assets:write', 'assets:assign', 'reports:read'],
+      scopes: ['assets:read', 'assets:write', 'assets:assign', 'reports:read', 'audit:read'],
       expiresInDays: 30,
     });
   writeToken = writeTok.body.token as string;
@@ -345,6 +345,20 @@ describe('MCP over Streamable HTTP (2026-07-28)', () => {
     expect(entries.some((e) => e.action === 'mcp.invoke')).toBe(true);
   });
 
+  it('requires audit:read for audit log tools, resources, and prompts', async () => {
+    const calls = [
+      ['tools/call', { name: 'workspace_audit_log', arguments: {} }],
+      ['resources/read', { uri: 'assetnest://audit-log/recent' }],
+      ['prompts/get', { name: 'audit_brief', arguments: {} }],
+    ] as const;
+    for (const [method, params] of calls) {
+      const denied = await mcp(readToken, method, params);
+      expect(denied.status).toBe(403);
+      expect(denied.body).toMatchObject({ error: 'insufficient_scope' });
+      expect((await mcp(writeToken, method, params)).status).toBe(200);
+    }
+  });
+
   it('resources/list advertises the workspace and assets resources', async () => {
     const res = await mcp(readToken, 'resources/list', {});
     expect(res.status).toBe(200);
@@ -395,5 +409,38 @@ describe('MCP over Streamable HTTP (2026-07-28)', () => {
   it('Origin header from an unexpected origin is rejected (DNS-rebinding guard)', async () => {
     const res = await mcp(readToken, 'server/discover', {}, { Origin: 'https://evil.example.com' });
     expect(res.status).toBe(403);
+  });
+
+  it('export policy is enforced through MCP (no alternate entry point)', async () => {
+    // Owner disables exports for the workspace.
+    const disable = await http()
+      .put(`/api/v1/workspaces/${workspaceId}/policies/export-policy`)
+      .set('Cookie', ownerCookie)
+      .set('x-csrf-token', ownerCsrf)
+      .send({ enabled: false, maxAgeDays: null });
+    expect(disable.status).toBe(200);
+
+    // The MCP tool uses the same ExportsService — creation is blocked.
+    const create = await mcp(writeToken, 'tools/call', {
+      name: 'exports_create',
+      arguments: { report: 'assets' },
+    });
+    expect(create.status).toBe(200);
+    expect(create.body.result.isError).toBe(true);
+    expect(JSON.stringify(create.body)).toContain('Exports are disabled');
+
+    // Listing hides exports and reports the effective policy.
+    const list = await mcp(writeToken, 'tools/call', { name: 'exports_list', arguments: {} });
+    expect(list.status).toBe(200);
+    const listed = toolData<{ exports: unknown[]; policy: { enabled: boolean } }>(list);
+    expect(listed.policy.enabled).toBe(false);
+    expect(listed.exports).toEqual([]);
+
+    // Restore a clean policy.
+    await http()
+      .put(`/api/v1/workspaces/${workspaceId}/policies/export-policy`)
+      .set('Cookie', ownerCookie)
+      .set('x-csrf-token', ownerCsrf)
+      .send({ enabled: true, maxAgeDays: null });
   });
 });

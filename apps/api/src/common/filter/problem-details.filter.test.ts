@@ -6,17 +6,24 @@ import { correlationMiddleware } from '../correlation.middleware.js';
 
 interface MockResponse {
   statusCode: number;
+  contentType: string | undefined;
   body: ProblemDetails | undefined;
   status: (code: number) => MockResponse;
+  type: (value: string) => MockResponse;
   json: (payload: ProblemDetails) => MockResponse;
 }
 
 function mockHost(url = '/api/v1/example') {
   const res: MockResponse = {
     statusCode: 0,
+    contentType: undefined,
     body: undefined,
     status(code: number) {
       res.statusCode = code;
+      return res;
+    },
+    type(value: string) {
+      res.contentType = value;
       return res;
     },
     json(payload: ProblemDetails) {
@@ -55,6 +62,7 @@ describe('ProblemDetailsFilter', () => {
     const { host, res } = mockHost('/api/v1/assets');
     filter.catch(parsed.error, host);
     expect(res.statusCode).toBe(HttpStatus.BAD_REQUEST);
+    expect(res.contentType).toContain('application/problem+json');
     expect(res.body?.code).toBe('VALIDATION_FAILED');
     expect(res.body?.status).toBe(400);
     expect(res.body?.detail).toContain('name');
@@ -68,6 +76,13 @@ describe('ProblemDetailsFilter', () => {
     expect(res.body?.detail).toBe('Asset not found');
     expect(res.body?.status).toBe(404);
     expectNoLeaks(res.body);
+  });
+
+  it('omits authentication query parameters from the problem instance', () => {
+    const { host, res } = mockHost('/api/v1/auth/oidc/callback?code=private-code&state=private-state');
+    filter.catch(new HttpException('Invalid authentication state', HttpStatus.BAD_REQUEST), host);
+    expect(res.body?.instance).toBe('/api/v1/auth/oidc/callback');
+    expect(JSON.stringify(res.body)).not.toContain('private-code');
   });
 
   it('uses the first string message when an HttpException carries an array message', () => {

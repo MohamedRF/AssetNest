@@ -52,7 +52,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       throw exception;
     }
 
-    const instance = typeof request?.url === 'string' ? request.url : '';
+    const instance = typeof request?.url === 'string' ? request.url.split('?', 1)[0]! : '';
     const requestId = CorrelationContext.getRequestId() ?? 'unknown';
 
     const problem = this.toProblemDetails(exception, instance, requestId);
@@ -65,7 +65,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       );
     }
 
-    response.status(problem.status).json(problem);
+    response.status(problem.status).type('application/problem+json').json(problem);
   }
 
   private toProblemDetails(exception: unknown, instance: string, requestId: string): ProblemDetails {

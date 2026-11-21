@@ -45,6 +45,61 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...validEnv, MAIL_TRANSPORT: 'smtp' })).toThrow(ConfigError);
   });
 
+  it('applies session-hardening defaults and leaves OIDC off', () => {
+    const config = loadConfig({ ...validEnv });
+    expect(config.SESSION_IDLE_TIMEOUT_MINUTES).toBe(120);
+    expect(config.SESSION_ABSOLUTE_TIMEOUT_HOURS).toBe(12);
+    expect(config.OIDC_ENABLED).toBe(false);
+    expect(config.OIDC_AUTO_CREATE).toBe(false);
+  });
+
+  it('requires issuer and client id when OIDC is enabled', () => {
+    expect(() => loadConfig({ ...validEnv, OIDC_ENABLED: 'true' })).toThrow(ConfigError);
+    expect(() =>
+      loadConfig({ ...validEnv, OIDC_ENABLED: 'true', OIDC_ISSUER: 'https://idp.example.com' }),
+    ).toThrow(ConfigError);
+  });
+
+  it('rejects a non-https OIDC issuer in production', () => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        NODE_ENV: 'production',
+        PUBLIC_APP_URL: 'https://app.example.com',
+        OIDC_ENABLED: 'true',
+        OIDC_ISSUER: 'http://idp.example.com',
+        OIDC_CLIENT_ID: 'assetnest',
+      }),
+    ).toThrow(ConfigError);
+  });
+
+  it('allows local OIDC discovery in development and rejects issuer credentials and queries', () => {
+    const enabled = { ...validEnv, OIDC_ENABLED: 'true', OIDC_CLIENT_ID: 'assetnest' };
+    expect(loadConfig({ ...enabled, OIDC_ISSUER: 'http://127.0.0.1:8080/realms/test' }).OIDC_ENABLED).toBe(
+      true,
+    );
+    expect(() => loadConfig({ ...enabled, OIDC_ISSUER: 'https://user@idp.example.com' })).toThrow(
+      ConfigError,
+    );
+    expect(() => loadConfig({ ...enabled, OIDC_ISSUER: 'https://idp.example.com/?tenant=test' })).toThrow(
+      ConfigError,
+    );
+  });
+
+  it('requires HTTPS for the production OIDC callback', () => {
+    expect(() =>
+      loadConfig({
+        ...validEnv,
+        NODE_ENV: 'production',
+        PUBLIC_APP_URL: 'https://app.example.com',
+        OIDC_ENABLED: 'true',
+        OIDC_ISSUER: 'https://idp.example.com',
+        OIDC_CLIENT_ID: 'assetnest',
+        OIDC_REDIRECT_URI: 'http://app.example.com/api/v1/auth/oidc/callback',
+      }),
+    ).toThrow(ConfigError);
+  });
+
   it('publicConfig never includes secret material', () => {
     const config = loadConfig({ ...validEnv });
     const printed = JSON.stringify(publicConfig(config));

@@ -113,8 +113,8 @@ export function Dashboard() {
           <CardContent>
             {!canSeeAuditLog ? (
               <p className="text-sm leading-6 text-muted-foreground">
-                Recent activity is visible to owners and admins. Your own custody trail lives on each asset's
-                detail page.
+                Recent activity is visible to owners, admins and auditors. Your own custody trail lives on
+                each asset's detail page.
               </p>
             ) : recentActivity.length === 0 ? (
               <EmptyState

@@ -8,6 +8,8 @@ Actors: unauthenticated attacker, malicious workspace member, compromised browse
 
 1. **Tenant isolation:** every data operation scoped to authenticated workspace membership; cross-workspace FKs; integration and queue jobs include scoped context; ownership checked after `id` lookup; automated isolation tests.
 2. **Sessions:** secure, HttpOnly, SameSite cookies, session rotation; CSRF protection; strict CORS; strong password hash (Argon2id) if local login; OIDC where supported; login rate limits.
+   - P6-04: optional provider-neutral OIDC (authorization code + PKCE, state/nonce, JWKS verification, iss/aud/exp checks, verified-email account linking, optional domain allowlist and auto-create). Local password login remains the default and works with OIDC disabled.
+   - P6-04 session hardening: idle timeout (`SESSION_IDLE_TIMEOUT_MINUTES`, default 120) and absolute lifetime (`SESSION_ABSOLUTE_TIMEOUT_HOURS`, default 12); expired sessions are revoked and rejected. `0` disables either cap.
 3. **RBAC:** deny-by-default scopes, server authoritative checks, separation of workspace admins and regular users, no client-only permissions.
 4. **Files:** MIME magic sniffing, size quotas, allowlist, malware scanning strategy, no path traversal, random opaque keys, no public links; optional pre-signed download with low TTL; HTTPS.
 5. **Audit logs:** actor, workspace, action, resource, change IDs, timestamp; immutable append behavior; no credentials or entire invoices in events.

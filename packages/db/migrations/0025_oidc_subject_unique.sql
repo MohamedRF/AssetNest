@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "users_auth_subject_unique" ON "users" USING btree ("auth_subject");

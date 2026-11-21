@@ -80,6 +80,9 @@ importers:
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(@electric-sql/pglite@0.5.16)(@types/pg@8.23.1)(pg@8.23.1)
+      jose:
+        specifier: 6.2.18
+        version: 6.2.18
       multer:
         specifier: 2.5.0
         version: 2.5.0

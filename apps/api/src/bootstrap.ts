@@ -25,8 +25,17 @@ export function configureApp(app: INestApplication, config: AppConfig): void {
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 
-  // Strict CORS: the single configured web origin only, with credentials.
-  app.enableCors({ origin: config.PUBLIC_APP_URL, credentials: true });
+  // Strict CORS: only the configured web origin (and same-origin/no-origin
+  // requests) is allowed. A function is used so the header is never echoed for
+  // an arbitrary attacker-controlled Origin.
+  const allowedOrigin = new URL(config.PUBLIC_APP_URL).origin;
+  app.enableCors({
+    origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+      if (!origin || origin === allowedOrigin) callback(null, true);
+      else callback(null, false);
+    },
+    credentials: true,
+  });
 
   app.use(securityHeadersMiddleware);
   app.use(correlationMiddleware);

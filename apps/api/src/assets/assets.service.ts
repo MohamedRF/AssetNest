@@ -10,12 +10,13 @@ import {
   memberships,
 } from '@assetnest/db';
 import type { Database } from '@assetnest/db';
-import { canTransition, type AssetStatus } from '@assetnest/domain';
+import { canTransition, type AssetStatus, type WorkflowAction } from '@assetnest/domain';
 import { DATABASE } from '../common/tokens.js';
 import { writeAuditLog } from '../common/audit.js';
 import { writeOutboxEvent } from '../common/outbox.js';
 import { httpCode, isUniqueViolation } from '../common/problem.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
+import { ApprovalsService } from '../approvals/approvals.service.js';
 import type { CreateAssetInput, ListAssetsQuery, StatusTransitionInput, UpdateAssetInput } from './dto.js';
 
 type AssetRow = typeof assets.$inferSelect;
@@ -36,7 +37,10 @@ function isNotFound(): never {
 
 @Injectable()
 export class AssetsService {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly approvals: ApprovalsService,
+  ) {}
 
   async get(ctx: WorkspaceContext, assetId: string) {
     const rows = await this.db
@@ -417,7 +421,14 @@ export class AssetsService {
       );
     }
 
+    // Configurable approval workflow (P6-02): disposal/retirement can be placed
+    // behind an approved request. No rule = no approval required (default).
+    const approvalAction: WorkflowAction | null =
+      input.to === 'disposed' ? 'asset.dispose' : input.to === 'retired' ? 'asset.retire' : null;
     await this.db.transaction(async (tx) => {
+      const approvalRequestId = approvalAction
+        ? await this.approvals.assertApproved(tx, ctx, approvalAction, 'asset', assetId)
+        : null;
       const [row] = await tx
         .update(assets)
         .set({ status: input.to, version: sql`${assets.version} + 1`, updatedAt: new Date() })
@@ -450,15 +461,19 @@ export class AssetsService {
         aggregateId: assetId,
         payload: { from, to: input.to },
       });
-      return [row];
-    });
-    await writeAuditLog(this.db, {
-      workspaceId: ctx.workspaceId,
-      actorId,
-      action: 'asset.status_changed',
-      resource: 'asset',
-      resourceId: assetId,
-      metadata: { from, to: input.to },
+      // Consume the approval in the same transaction as the state change so a
+      // granted approval cannot be replayed for a second disposal.
+      if (approvalRequestId) {
+        await this.approvals.consume(tx, approvalRequestId);
+      }
+      await writeAuditLog(tx, {
+        workspaceId: ctx.workspaceId,
+        actorId,
+        action: 'asset.status_changed',
+        resource: 'asset',
+        resourceId: assetId,
+        metadata: { from, to: input.to },
+      });
     });
     return this.get(ctx, assetId);
   }

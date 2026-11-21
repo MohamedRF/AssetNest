@@ -2,17 +2,27 @@ import { createWriteStream } from 'node:fs';
 import { mkdir, stat, unlink } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { HttpStatus, Inject, Injectable, HttpException } from '@nestjs/common';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import { exports as exportsTable } from '@assetnest/db';
 import type { Database } from '@assetnest/db';
 import type { AppConfig } from '@assetnest/config';
+import { exportExpiryCutoff, isExportExpired } from '@assetnest/domain';
 import { APP_CONFIG, DATABASE } from '../common/tokens.js';
 import { writeAuditLog } from '../common/audit.js';
 import { httpCode } from '../common/problem.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
+import { PoliciesService } from '../policies/policies.service.js';
 import type { ReportKind } from './dto.js';
 
 const CHUNK_SIZE = 500;
+
+export interface ExportListRow {
+  id: string;
+  report: string;
+  status: string;
+  requestedBy: string | null;
+  createdAt: Date;
+}
 
 /**
  * Spreadsheet formula-injection defense (OWASP CSV Injection). Excel, Sheets and
@@ -42,6 +52,7 @@ export class ExportsService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly policies: PoliciesService,
   ) {}
 
   private resolveInsideRoot(objectKey: string): string {
@@ -54,7 +65,13 @@ export class ExportsService {
   }
 
   async listAll(ctx: WorkspaceContext) {
-    return this.db
+    const policy = await this.policies.getExportPolicy(ctx);
+    // Disabled policy hides all exports (and their metadata) from every caller.
+    if (!policy.enabled) {
+      return { exports: [] as ExportListRow[], policy };
+    }
+    const cutoff = exportExpiryCutoff(policy);
+    const rows = await this.db
       .select({
         id: exportsTable.id,
         report: exportsTable.report,
@@ -63,12 +80,26 @@ export class ExportsService {
         createdAt: exportsTable.createdAt,
       })
       .from(exportsTable)
-      .where(eq(exportsTable.workspaceId, ctx.workspaceId))
-      .orderBy(asc(exportsTable.createdAt))
+      .where(
+        and(
+          eq(exportsTable.workspaceId, ctx.workspaceId),
+          cutoff ? gte(exportsTable.createdAt, cutoff) : undefined,
+        ),
+      )
+      .orderBy(desc(exportsTable.createdAt), desc(exportsTable.id))
       .limit(20);
+    return { exports: rows, policy };
   }
 
   async generate(ctx: WorkspaceContext, actorId: string, report: ReportKind) {
+    const policy = await this.policies.getExportPolicy(ctx);
+    if (!policy.enabled) {
+      throw httpCode(
+        HttpStatus.FORBIDDEN,
+        'Exports are disabled by this workspace’s export policy',
+        'EXPORT_DISABLED',
+      );
+    }
     const [exportRow] = await this.db
       .insert(exportsTable)
       .values({
@@ -299,6 +330,16 @@ export class ExportsService {
   }
 
   async getForDownload(ctx: WorkspaceContext, exportId: string) {
+    // Policy is re-evaluated at download time so a later change (disable, or a
+    // shorter maxAgeDays) applies to files that were generated earlier.
+    const policy = await this.policies.getExportPolicy(ctx);
+    if (!policy.enabled) {
+      throw httpCode(
+        HttpStatus.FORBIDDEN,
+        'Exports are disabled by this workspace’s export policy',
+        'EXPORT_DISABLED',
+      );
+    }
     const [row] = await this.db
       .select()
       .from(exportsTable)
@@ -309,6 +350,9 @@ export class ExportsService {
     }
     if (row.status !== 'completed') {
       throw httpCode(HttpStatus.CONFLICT, 'Export is not ready', 'EXPORT_NOT_READY');
+    }
+    if (isExportExpired(row.createdAt, policy)) {
+      throw httpCode(HttpStatus.GONE, 'Export file is missing (may have expired)', 'EXPORT_EXPIRED');
     }
     const filePath = this.resolveInsideRoot(row.objectKey);
     try {

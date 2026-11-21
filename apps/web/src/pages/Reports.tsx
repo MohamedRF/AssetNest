@@ -1,3 +1,4 @@
+import type { OperationOptions, OperationResult } from '@assetnest/sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BarChart3, Download, FilePlus2, Loader2, ShieldCheck, Wrench, FileSpreadsheet } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
@@ -6,17 +7,10 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { useToast } from '../components/ui/toast';
-import { api, isApiError } from '../lib/api';
+import { api, getApiBaseUrl, isApiError } from '../lib/api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
-type ReportKind = 'assets' | 'warranties' | 'maintenance';
-
-interface ExportRow {
-  id: string;
-  report: ReportKind;
-  status: string;
-  createdAt: string;
-}
+type ReportKind = OperationOptions<'createExport'>['body']['report'];
 
 const REPORTS: ReadonlyArray<{
   kind: ReportKind;
@@ -62,12 +56,15 @@ export function Reports() {
   const exportsQuery = useQuery({
     queryKey: ['exports', workspaceId],
     enabled: canRead && workspaceId !== undefined,
-    queryFn: () => api.get<{ exports: ExportRow[] }>(`/workspaces/${workspaceId}/exports`),
+    queryFn: () => api.get<OperationResult<'listExports'>>(`/workspaces/${workspaceId}/exports`),
   });
+
+  const exportsEnabled = exportsQuery.data?.policy?.enabled ?? true;
+  const exportMaxAgeDays = exportsQuery.data?.policy?.maxAgeDays ?? null;
 
   const generate = useMutation({
     mutationFn: (report: ReportKind) =>
-      api.post<{ id: string; downloadUrl: string }>(`/workspaces/${workspaceId}/exports`, { report }),
+      api.post<OperationResult<'createExport'>>(`/workspaces/${workspaceId}/exports`, { report }),
     onSuccess: async (created) => {
       toast({ title: 'Report generated', description: 'Download started below.', variant: 'success' });
       void queryClient.invalidateQueries({ queryKey: ['exports', workspaceId] });
@@ -112,6 +109,15 @@ export function Reports() {
         <p className="rounded-xl border border-warning/40 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
           Your role can view assets but not run exports. Ask an auditor, manager, admin or owner.
         </p>
+      ) : exportsQuery.isError ? (
+        <p role="alert">Could not load the workspace export policy.</p>
+      ) : exportsQuery.isPending ? (
+        <p role="status">Loading the workspace export policy�</p>
+      ) : !exportsEnabled ? (
+        <p className="rounded-xl border border-warning/40 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
+          Exports are turned off by this workspace’s export policy. An owner or admin can re-enable them in
+          Settings.
+        </p>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {REPORTS.map((report) => (
@@ -146,7 +152,12 @@ export function Reports() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Recent exports</CardTitle>
-          <CardDescription>Most recent first — files are private to this workspace.</CardDescription>
+          <CardDescription>
+            Most recent first — files are private to this workspace.
+            {exportMaxAgeDays !== null
+              ? ` Files older than ${exportMaxAgeDays} day${exportMaxAgeDays === 1 ? '' : 's'} are hidden and cannot be downloaded.`
+              : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!canRead ? (
@@ -160,7 +171,7 @@ export function Reports() {
                 <p className="text-sm text-muted-foreground">No exports yet. Generate one above.</p>
               )}
               <ul className="flex flex-col divide-y divide-border">
-                {[...exports].reverse().map((row) => (
+                {exports.map((row) => (
                   <li key={row.id} className="flex flex-wrap items-center gap-3 py-2.5">
                     <FileSpreadsheet aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -171,7 +182,7 @@ export function Reports() {
                     </span>
                     <Badge variant={row.status === 'completed' ? 'success' : 'warning'}>{row.status}</Badge>
                     <a
-                      href={`/api/v1/workspaces/${workspaceId}/exports/${row.id}/download`}
+                      href={`${getApiBaseUrl()}/workspaces/${workspaceId}/exports/${row.id}/download`}
                       download
                       aria-label={`Download ${row.report} export`}
                       className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"

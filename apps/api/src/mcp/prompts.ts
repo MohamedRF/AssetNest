@@ -123,6 +123,7 @@ export class AssetNestMcpPrompts {
   @Prompt({
     name: 'audit_brief',
     description: 'Summarize recent audit-log activity into a concise operational brief.',
+    scopes: ['audit:read'],
   })
   async auditBrief(_args: Record<string, never>, ctx: McpContext) {
     const id = automationIdentity(ctx);

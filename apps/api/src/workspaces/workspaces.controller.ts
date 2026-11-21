@@ -121,7 +121,10 @@ export class WorkspacesController {
   }
 
   @Get(':workspaceId/audit-log')
-  @ApiOperation({ operationId: 'listWorkspaceAuditLog', description: 'Requires workspace:manage.' })
+  @ApiOperation({
+    operationId: 'listWorkspaceAuditLog',
+    description: 'Requires audit:read (owner, admin or auditor).',
+  })
   @ApiSecurity('bearer')
   @ApiQuery({
     name: 'limit',
@@ -130,7 +133,7 @@ export class WorkspacesController {
   })
   @ApiQuery({ name: 'offset', required: false, schema: { type: 'integer', minimum: 0, default: 0 } })
   @ApiOkResponse({ schema: auditLogListResponse })
-  @RequirePermissions('workspace:manage')
+  @RequirePermissions('audit:read')
   async auditLog(
     @CurrentWorkspace() ctx: WorkspaceContext,
     @Query('limit') limit = '50',

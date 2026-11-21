@@ -3,8 +3,14 @@ import {
   ASSET_STATUSES,
   VersionConflictError,
   allowedTransitions,
+  auditRetentionCutoff,
+  canSelfApprove,
   canTransition,
+  isApprovalQuorumMet,
+  isExportExpired,
   isValidAssetTag,
+  isValidAuditRetentionDays,
+  isValidWorkflowRule,
   normalizeAssetTag,
   permissionsForRole,
   roleHasPermission,
@@ -63,6 +69,109 @@ describe('RBAC permission mapping', () => {
     expect(roleHasPermission('manager', 'integrations:manage')).toBe(false);
     expect(roleHasPermission('manager', 'ai:configure')).toBe(false);
     expect(roleHasPermission('manager', 'assets:assign')).toBe(true);
+  });
+
+  it('auditor can read the audit trail but cannot change policy', () => {
+    expect(roleHasPermission('auditor', 'audit:read')).toBe(true);
+    expect(roleHasPermission('auditor', 'audit:manage')).toBe(false);
+    expect(roleHasPermission('auditor', 'exports:manage')).toBe(false);
+  });
+
+  it('policy administration is owner/admin only', () => {
+    for (const role of ['owner', 'admin'] as const) {
+      expect(roleHasPermission(role, 'audit:read')).toBe(true);
+      expect(roleHasPermission(role, 'audit:manage')).toBe(true);
+      expect(roleHasPermission(role, 'exports:manage')).toBe(true);
+      expect(roleHasPermission(role, 'approvals:manage')).toBe(true);
+    }
+    for (const role of ['manager', 'member', 'auditor'] as const) {
+      expect(roleHasPermission(role, 'audit:manage')).toBe(false);
+      expect(roleHasPermission(role, 'exports:manage')).toBe(false);
+    }
+  });
+
+  it('managers may manage approvals, auditors may read them, members may not', () => {
+    expect(roleHasPermission('manager', 'approvals:manage')).toBe(true);
+    expect(roleHasPermission('manager', 'approvals:read')).toBe(true);
+    expect(roleHasPermission('auditor', 'approvals:read')).toBe(true);
+    expect(roleHasPermission('auditor', 'approvals:manage')).toBe(false);
+    expect(roleHasPermission('member', 'approvals:read')).toBe(false);
+  });
+});
+
+describe('approval workflow rules', () => {
+  const valid = {
+    action: 'asset.dispose' as const,
+    requiredApprovals: 2,
+    approverRoles: ['admin', 'manager'] as const,
+    selfApproval: false,
+  };
+
+  it('accepts a well-formed rule', () => {
+    expect(isValidWorkflowRule({ ...valid, approverRoles: [...valid.approverRoles] })).toBe(true);
+  });
+
+  it('rejects unknown actions, bad counts, empty roles and duplicates', () => {
+    expect(isValidWorkflowRule({ ...valid, action: 'nope' as never })).toBe(false);
+    expect(isValidWorkflowRule({ ...valid, requiredApprovals: 0 })).toBe(false);
+    expect(isValidWorkflowRule({ ...valid, requiredApprovals: 11 })).toBe(false);
+    expect(isValidWorkflowRule({ ...valid, approverRoles: [] })).toBe(false);
+    expect(isValidWorkflowRule({ ...valid, approverRoles: ['admin', 'admin'] })).toBe(false);
+  });
+
+  it('computes the approval quorum', () => {
+    expect(isApprovalQuorumMet(2, 2)).toBe(true);
+    expect(isApprovalQuorumMet(3, 2)).toBe(true);
+    expect(isApprovalQuorumMet(1, 2)).toBe(false);
+  });
+
+  it('only allows self-approval when the rule opts in', () => {
+    expect(canSelfApprove(false, 'user-1', 'user-1')).toBe(false);
+    expect(canSelfApprove(true, 'user-1', 'user-1')).toBe(true);
+    expect(canSelfApprove(false, 'user-1', 'user-2')).toBe(true);
+  });
+});
+
+describe('audit retention policy', () => {
+  it('null retention never yields a cutoff', () => {
+    expect(auditRetentionCutoff(null, new Date('2026-01-01T00:00:00Z'))).toBeNull();
+  });
+
+  it('finite retention subtracts whole days from now', () => {
+    const now = new Date('2026-06-01T00:00:00Z');
+    const cutoff = auditRetentionCutoff(30, now);
+    expect(cutoff?.toISOString()).toBe('2026-05-02T00:00:00.000Z');
+  });
+
+  it('validates retention day bounds', () => {
+    expect(isValidAuditRetentionDays(1)).toBe(true);
+    expect(isValidAuditRetentionDays(3650)).toBe(true);
+    expect(isValidAuditRetentionDays(0)).toBe(false);
+    expect(isValidAuditRetentionDays(3651)).toBe(false);
+    expect(isValidAuditRetentionDays(1.5)).toBe(false);
+    expect(isValidAuditRetentionDays(null)).toBe(false);
+  });
+});
+
+describe('export policy expiry', () => {
+  const now = new Date('2026-06-01T00:00:00Z');
+
+  it('never expires when maxAgeDays is null', () => {
+    expect(isExportExpired(new Date('2020-01-01T00:00:00Z'), { enabled: true, maxAgeDays: null }, now)).toBe(
+      false,
+    );
+  });
+
+  it('expires files older than the window but keeps fresh ones', () => {
+    const policy = { enabled: true, maxAgeDays: 7 };
+    expect(isExportExpired(new Date('2026-05-20T00:00:00Z'), policy, now)).toBe(true);
+    expect(isExportExpired(new Date('2026-05-28T00:00:00Z'), policy, now)).toBe(false);
+  });
+
+  it('treats an export exactly at the cutoff as still valid (strict boundary)', () => {
+    const policy = { enabled: true, maxAgeDays: 7 };
+    // 2026-05-25T00:00:00Z is exactly 7 days before now -> not older than the window.
+    expect(isExportExpired(new Date('2026-05-25T00:00:00Z'), policy, now)).toBe(false);
   });
 });
 

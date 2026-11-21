@@ -82,6 +82,15 @@ export const restOperations = {
       '200': 'json',
     },
   },
+  getAuthMethods: {
+    method: 'GET',
+    path: '/api/v1/auth/oidc/config',
+    bearer: false,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
   listWorkspaces: {
     method: 'GET',
     path: '/api/v1/workspaces',
@@ -343,6 +352,60 @@ export const restOperations = {
       '200': 'text',
     },
   },
+  listApprovalRules: {
+    method: 'GET',
+    path: '/api/v1/workspaces/{workspaceId}/approvals/rules',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  setApprovalRules: {
+    method: 'PUT',
+    path: '/api/v1/workspaces/{workspaceId}/approvals/rules',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  listApprovalRequests: {
+    method: 'GET',
+    path: '/api/v1/workspaces/{workspaceId}/approvals/requests',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  createApprovalRequest: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/approvals/requests',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '201': 'json',
+    },
+  },
+  decideApprovalRequest: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/approvals/requests/{requestId}/decide',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  cancelApprovalRequest: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/approvals/requests/{requestId}/cancel',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
   uploadDocument: {
     method: 'POST',
     path: '/api/v1/workspaces/{workspaceId}/assets/{assetId}/documents',
@@ -593,6 +656,42 @@ export const restOperations = {
     multipart: false,
     responseFormats: {
       '200': 'text',
+    },
+  },
+  getWorkspacePolicies: {
+    method: 'GET',
+    path: '/api/v1/workspaces/{workspaceId}/policies',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  setWorkspaceAuditRetention: {
+    method: 'PUT',
+    path: '/api/v1/workspaces/{workspaceId}/policies/audit-retention',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  setWorkspaceExportPolicy: {
+    method: 'PUT',
+    path: '/api/v1/workspaces/{workspaceId}/policies/export-policy',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  pruneWorkspaceAuditLog: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/policies/audit-retention/prune',
+    bearer: true,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
     },
   },
   createApiToken: {

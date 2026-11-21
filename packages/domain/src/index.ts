@@ -59,7 +59,12 @@ export const PERMISSIONS = [
   'documents:read',
   'documents:write',
   'audits:manage',
+  'audit:read',
+  'audit:manage',
   'reports:read',
+  'exports:manage',
+  'approvals:read',
+  'approvals:manage',
   'integrations:manage',
   'ai:use',
   'ai:configure',
@@ -83,10 +88,14 @@ export const ROLE_PERMISSIONS: Readonly<Record<WorkspaceRole, readonly Permissio
     'documents:write',
     'audits:manage',
     'reports:read',
+    'approvals:read',
+    'approvals:manage',
     'ai:use',
   ],
   member: ['assets:read', 'documents:read'],
-  auditor: ['assets:read', 'documents:read', 'audits:manage', 'reports:read'],
+  // Auditor: read-only across assets/documents, manages physical audits and
+  // (per SECURITY_PRIVACY.md "audit and read-only scope") may read the audit trail.
+  auditor: ['assets:read', 'documents:read', 'audits:manage', 'reports:read', 'audit:read', 'approvals:read'],
 };
 
 export function roleHasPermission(role: WorkspaceRole, permission: Permission): boolean {
@@ -95,6 +104,57 @@ export function roleHasPermission(role: WorkspaceRole, permission: Permission): 
 
 export function permissionsForRole(role: WorkspaceRole): readonly Permission[] {
   return ROLE_PERMISSIONS[role];
+}
+
+// ─── Audit retention (workspace policy) ─────────────────────────────────────
+
+/** Inclusive bounds for a finite audit-retention window, in days. */
+export const AUDIT_RETENTION_MIN_DAYS = 1;
+export const AUDIT_RETENTION_MAX_DAYS = 3650;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Cutoff timestamp for audit retention. `null` retention means "keep forever"
+ * and yields `null` (no pruning). A row exactly at the cutoff is retained
+ * (the delete uses a strict `<`). Pure and timezone-safe.
+ */
+export function auditRetentionCutoff(retentionDays: number | null, now: Date = new Date()): Date | null {
+  if (retentionDays === null) return null;
+  return new Date(now.getTime() - retentionDays * DAY_MS);
+}
+
+export function isValidAuditRetentionDays(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= AUDIT_RETENTION_MIN_DAYS &&
+    value <= AUDIT_RETENTION_MAX_DAYS
+  );
+}
+
+// ─── Export policy (workspace policy) ───────────────────────────────────────
+
+export interface ExportPolicy {
+  /** When false, no export may be created, listed or downloaded. */
+  enabled: boolean;
+  /** Max age of a generated export, in days. `null` = no expiry. */
+  maxAgeDays: number | null;
+}
+
+export const DEFAULT_EXPORT_POLICY: ExportPolicy = { enabled: true, maxAgeDays: null };
+
+/** Inclusive bounds for export file lifetime, in days. */
+export const EXPORT_MAX_AGE_MIN_DAYS = 1;
+export const EXPORT_MAX_AGE_MAX_DAYS = 3650;
+
+/** True when the export is older than the policy's max age. */
+export function isExportExpired(createdAt: Date, policy: ExportPolicy, now: Date = new Date()): boolean {
+  const cutoff = exportExpiryCutoff(policy, now);
+  return cutoff !== null && createdAt.getTime() < cutoff.getTime();
+}
+
+export function exportExpiryCutoff(policy: ExportPolicy, now: Date = new Date()): Date | null {
+  return policy.maxAgeDays === null ? null : new Date(now.getTime() - policy.maxAgeDays * DAY_MS);
 }
 
 /** Asset tag: uppercase letters, digits, hyphen. Unique per workspace. */
@@ -120,4 +180,54 @@ export class VersionConflictError extends Error {
     this.expected = expected;
     this.actual = actual;
   }
+}
+
+// ─── Approval workflows (P6-02 enterprise workflows) ────────────────────────
+
+/** Actions that a workspace workflow policy may place behind an approval. */
+export const WORKFLOW_ACTIONS = ['asset.dispose', 'asset.retire'] as const;
+export type WorkflowAction = (typeof WORKFLOW_ACTIONS)[number];
+
+export function isWorkflowAction(value: string): value is WorkflowAction {
+  return (WORKFLOW_ACTIONS as readonly string[]).includes(value);
+}
+
+export type ApprovalDecision = 'approved' | 'rejected';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'executed';
+
+export interface WorkflowRule {
+  action: WorkflowAction;
+  /** Number of distinct eligible approvals required to approve the request. */
+  requiredApprovals: number;
+  /** Roles whose members may approve. */
+  approverRoles: WorkspaceRole[];
+  /** Whether the requester may also approve their own request. Default false. */
+  selfApproval: boolean;
+}
+
+export const APPROVAL_REQUIRED_MIN = 1;
+export const APPROVAL_REQUIRED_MAX = 10;
+
+/** A rule is valid only with a known action, 1..10 approvals and ≥1 valid role. */
+export function isValidWorkflowRule(rule: WorkflowRule): boolean {
+  return (
+    isWorkflowAction(rule.action) &&
+    Number.isInteger(rule.requiredApprovals) &&
+    rule.requiredApprovals >= APPROVAL_REQUIRED_MIN &&
+    rule.requiredApprovals <= APPROVAL_REQUIRED_MAX &&
+    Array.isArray(rule.approverRoles) &&
+    rule.approverRoles.length > 0 &&
+    new Set(rule.approverRoles).size === rule.approverRoles.length &&
+    rule.approverRoles.every((role) => (WORKSPACE_ROLES as readonly string[]).includes(role))
+  );
+}
+
+/** True once the number of distinct approvals meets the required quorum. */
+export function isApprovalQuorumMet(approvals: number, required: number): boolean {
+  return approvals >= required;
+}
+
+/** A requester may approve only when the rule explicitly allows self-approval. */
+export function canSelfApprove(selfApproval: boolean, requesterId: string, actorId: string): boolean {
+  return selfApproval || requesterId !== actorId;
 }

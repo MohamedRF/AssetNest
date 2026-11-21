@@ -22,6 +22,8 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { AuditsModule } from './audits/audits.module.js';
 import { ImportsModule } from './imports/imports.module.js';
 import { ExportsModule } from './exports/exports.module.js';
+import { PoliciesModule } from './policies/policies.module.js';
+import { ApprovalsModule } from './approvals/approvals.module.js';
 import { ApiTokensModule } from './api-tokens/api-tokens.module.js';
 import { WebhooksModule } from './webhooks/webhooks.module.js';
 import { AiModule } from './ai/ai.module.js';
@@ -94,6 +96,8 @@ const mcpRootModule = McpModule.forRootAsync({
     AuditsModule,
     ImportsModule,
     ExportsModule,
+    PoliciesModule,
+    ApprovalsModule,
     ApiTokensModule,
     WebhooksModule,
     AiModule,

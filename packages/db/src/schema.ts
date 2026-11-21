@@ -47,7 +47,10 @@ export const users = pgTable(
     lockedUntil: timestamp('locked_until', { withTimezone: true }),
     ...timestamps,
   },
-  (t) => [uniqueIndex('users_email_unique').on(sql`lower(${t.email})`)],
+  (t) => [
+    uniqueIndex('users_email_unique').on(sql`lower(${t.email})`),
+    uniqueIndex('users_auth_subject_unique').on(t.authSubject),
+  ],
 );
 
 export const workspaces = pgTable(
@@ -58,9 +61,20 @@ export const workspaces = pgTable(
     mode: text('mode').notNull().default('office'), // 'home' | 'office' (check constraint in SQL)
     slug: text('slug').notNull(),
     settingsJson: jsonb('settings_json').notNull().default({}),
+    // ─── P6-01 workspace policies ────────────────────────────────────────
+    // NULL = retain audit history indefinitely (default; never destroy by surprise).
+    auditRetentionDays: integer('audit_retention_days'),
+    // { enabled: boolean, maxAgeDays: number | null }
+    exportPolicyJson: jsonb('export_policy_json').notNull().default({ enabled: true, maxAgeDays: null }),
     ...timestamps,
   },
-  (t) => [uniqueIndex('workspaces_slug_unique').on(t.slug)],
+  (t) => [
+    uniqueIndex('workspaces_slug_unique').on(t.slug),
+    check(
+      'workspaces_audit_retention_days_check',
+      sql`${t.auditRetentionDays} is null or ${t.auditRetentionDays} between 1 and 3650`,
+    ),
+  ],
 );
 
 // Built-in role catalog. workspace_id is reserved for future workspace-custom roles;
@@ -677,6 +691,62 @@ export const auditLog = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('audit_log_workspace_time_idx').on(t.workspaceId, t.occurredAt)],
+);
+
+// ─── Approval workflows (P6-02) ─────────────────────────────────────────────
+
+export const workflowRules = pgTable(
+  'workflow_rules',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    requiredApprovals: integer('required_approvals').notNull().default(1),
+    approverRoles: text('approver_roles').array().notNull(),
+    selfApproval: boolean('self_approval').notNull().default(false),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('workflow_rules_workspace_action_unique').on(t.workspaceId, t.action)],
+);
+
+export const approvalRequests = pgTable(
+  'approval_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    resourceType: text('resource_type').notNull(),
+    resourceId: uuid('resource_id'),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    status: text('status').notNull().default('pending'), // pending | approved | rejected | cancelled | executed
+    requiredApprovals: integer('required_approvals').notNull(),
+    approverRoles: text('approver_roles').array().notNull(),
+    selfApproval: boolean('self_approval').notNull().default(false),
+    contextJson: jsonb('context_json').notNull().default({}),
+    ...timestamps,
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    executedAt: timestamp('executed_at', { withTimezone: true }),
+  },
+  (t) => [index('approval_requests_workspace_status_idx').on(t.workspaceId, t.status)],
+);
+
+export const approvalDecisions = pgTable(
+  'approval_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    requestId: uuid('request_id')
+      .notNull()
+      .references(() => approvalRequests.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    decision: text('decision').notNull(), // approved | rejected
+    note: text('note'),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [uniqueIndex('approval_decisions_request_actor_unique').on(t.requestId, t.actorId)],
 );
 
 // ─── Migration 002 — locations, categories, vendors, asset models ────────────

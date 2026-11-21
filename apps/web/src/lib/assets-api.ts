@@ -4,6 +4,8 @@ import type {
   AssetListQuery,
   AssetPage,
   CreateAssetRequest,
+  OperationOptions,
+  OperationResult,
 } from '@assetnest/sdk';
 import { api } from './api';
 
@@ -30,6 +32,15 @@ export const assetsApi = {
     api.get<AssetHistory>(`${assetPath(workspaceId, assetId)}/history`),
   create: (workspaceId: string, body: CreateAssetRequest) =>
     api.post<AssetDetail>(collectionPath(workspaceId), body),
+  transition: (
+    workspaceId: string,
+    assetId: string,
+    body: OperationOptions<'transitionAssetStatus'>['body'],
+  ) =>
+    api.post<OperationResult<'transitionAssetStatus'>>(
+      `${assetPath(workspaceId, assetId)}/status-transition`,
+      body,
+    ),
   archive: (workspaceId: string | undefined, assetId: string | undefined) =>
     api.post<AssetDetail>(`${assetPath(workspaceId, assetId)}/archive`),
 };

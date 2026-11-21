@@ -1,3 +1,4 @@
+import type { OperationResult } from '@assetnest/sdk';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { CircleAlert, Loader2, ServerOff } from 'lucide-react';
@@ -7,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { isApiError } from '../lib/api';
+import { api, getApiBaseUrl, isApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 const loginSchema = z.object({
@@ -31,6 +32,20 @@ export function Login() {
   const [formError, setFormError] = useState<string | null>(null);
   const [apiUnavailable, setApiUnavailable] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [oidcEnabled, setOidcEnabled] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<OperationResult<'getAuthMethods'>>('/auth/oidc/config')
+      .then((config) => {
+        if (active) setOidcEnabled(config.oidcEnabled);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Already signed in → go straight to the app.
   useEffect(() => {
@@ -172,6 +187,22 @@ export function Login() {
               {submitting ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
+
+          {oidcEnabled && (
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <a
+                href={`${getApiBaseUrl()}/auth/oidc/start`}
+                className="inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Sign in with SSO
+              </a>
+            </div>
+          )}
         </CardContent>
       </Card>
 

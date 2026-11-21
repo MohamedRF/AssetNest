@@ -44,3 +44,62 @@ Two workspaces (one household, one office), users with owner/admin/member/audito
 ## AI contract tests
 
 Mock OpenAI-compatible server and deterministic response fixtures; native API live tests opt-in only with budget/secret config. Matrix covers bad credentials, rate limit, timeout, unsupported vision/structured output, empty/malformed JSON, streaming, no usage info, policy consent and fallback boundaries. Maintain provider capabilities as versioned observed facts rather than claims of universal support.
+
+## Quality gates (P6-05)
+
+The following are automated or scripted and should be run before a release
+candidate; record the actual output rather than assuming.
+
+### Performance / load
+
+- `pnpm --filter @assetnest/api exec vitest run src/perf/perf.e2e.test.ts` —
+  1k-row list/search/history probe on embedded PostgreSQL (informational).
+- `pnpm ops:load-test` (or `LOAD_TEST_BASE_URL=… LOAD_TEST_EMAIL=… LOAD_TEST_PASSWORD=… node scripts/load-test.mjs`)
+  against a disposable/staging stack. It exercises health, auth/me, the asset
+  list and search, and reports per-probe p50/p95/p99 and the error rate. It
+  measures through response-body consumption and exits non-zero above a 2%
+  error rate. Use a real PostgreSQL 17 instance to record release evidence.
+  Both credential variables are required for authenticated probes. A supplied
+  login must resolve a workspace or specify `LOAD_TEST_WORKSPACE_ID`.
+
+### Security
+
+- `apps/api/src/security/tenancy.e2e.test.ts` — cross-tenant reads/writes,
+  ID enumeration, invite replay, file type/traversal, optimistic writes.
+- `apps/api/src/security/security-headers.e2e.test.ts` — `nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy`, no `X-Powered-By`, request ids,
+  RFC7807 `application/problem+json`, CORS restricted to the configured
+  origin, and HttpOnly/SameSite session cookies.
+- `apps/api/src/auth/oidc.e2e.test.ts` — state/nonce/PKCE, JWKS verification,
+  domain allowlist and account linking.
+- `apps/api/src/auth/session-hardening.e2e.test.ts` — idle and absolute
+  session timeouts revoke and reject.
+- `apps/api/src/auth/api-tokens.e2e.test.ts`, `mcp.e2e.test.ts`,
+  `exports.e2e.test.ts`, `policies.e2e.test.ts`, `approvals.e2e.test.ts` —
+  scope enforcement and policy/approval bypass attempts.
+
+### Accessibility
+
+- `pnpm --filter @assetnest/web exec vitest run src/pages/a11y.test.tsx` —
+  axe-core smoke on the login and approvals screens. The target is WCAG 2.2 AA
+  for main flows; run the Playwright critical path on Chromium plus one other
+  engine before release.
+
+### Chaos / failure
+
+- `apps/api/src/health/health.test.ts` — liveness stays 200 with an
+  unreachable database, readiness returns a leak-free 503.
+- `apps/worker/src/relay.test.ts`, `email.test.ts`, `webhooks.test.ts` —
+  outbox retries, idempotent delivery, dead-letter and webhook retry/backoff.
+- `apps/api/src/ai/ai-disabled.e2e.test.ts` — the core app works with AI off.
+- `apps/api/src/ai/ai-draft-persistence.e2e.test.ts` — a forced draft-write
+  failure never leaks the draft or raw driver error.
+- `apps/api/src/exports/exports.e2e.test.ts` — stream/formula-injection
+  hardening and failure cleanup.
+
+### Release gate evidence to record
+
+For each release candidate, capture: exact commands and exit codes, test
+totals, the load-probe JSON, the backup/restore drill output, the migration
+upgrade check, and the accessibility/security smoke results. Do not mark a gate
+passed from an unrun command.

@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   BarChart3,
   Blocks,
   ChevronsLeft,
@@ -34,6 +35,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/warranties', label: 'Warranties', icon: ShieldCheck },
   { to: '/audits', label: 'Audits', icon: ClipboardCheck },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/approvals', label: 'Approvals', icon: BadgeCheck },
   { to: '/team', label: 'Team', icon: Users },
   { to: '/integrations', label: 'Integrations', icon: Blocks },
   { to: '/settings', label: 'Settings', icon: Settings },

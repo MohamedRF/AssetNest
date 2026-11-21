@@ -111,7 +111,7 @@ export class AssetNestMcpResources {
     name: 'audit_log_recent',
     mimeType: 'application/json',
     description: 'The 8 most recent audit-log entries.',
-    scopes: ['reports:read'],
+    scopes: ['audit:read'],
   })
   recentAuditLog(_input: Record<string, never>, ctx: McpContext) {
     const id = automationIdentity(ctx);

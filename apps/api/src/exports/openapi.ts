@@ -15,6 +15,10 @@ export const listExportsResponse = openApiSchema(
         createdAt: z.iso.datetime(),
       }),
     ),
+    policy: z.object({
+      enabled: z.boolean(),
+      maxAgeDays: z.number().int().nullable(),
+    }),
   }),
 );
 

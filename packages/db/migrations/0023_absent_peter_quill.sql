@@ -1,0 +1,3 @@
+ALTER TABLE "workspaces" ADD COLUMN "audit_retention_days" integer;--> statement-breakpoint
+ALTER TABLE "workspaces" ADD COLUMN "export_policy_json" jsonb DEFAULT '{"enabled":true,"maxAgeDays":null}'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "workspaces" ADD CONSTRAINT "workspaces_audit_retention_days_check" CHECK ("workspaces"."audit_retention_days" is null or "workspaces"."audit_retention_days" between 1 and 3650);

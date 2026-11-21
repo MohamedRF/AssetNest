@@ -33,7 +33,7 @@ export class ExportsController {
   @ApiOkResponse({ schema: listExportsResponse })
   @RequirePermissions('reports:read')
   async list(@CurrentWorkspace() ctx: WorkspaceContext) {
-    return { exports: await this.exportsService.listAll(ctx) };
+    return this.exportsService.listAll(ctx);
   }
 
   @Post()

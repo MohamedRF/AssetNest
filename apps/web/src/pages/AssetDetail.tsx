@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Archive, CalendarDays, CircleDollarSign, Hash, QrCode, Tag, Wrench } from 'lucide-react';
 import type { AssetHistory } from '@assetnest/sdk';
+import { AssetLifecycleActions } from '../components/AssetLifecycleActions';
 import { AssetStatusBadge } from '../components/AssetStatusBadge';
 import { PageHeader } from '../components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -239,6 +240,14 @@ export function AssetDetailPage() {
               </CardContent>
             </Card>
           </div>
+
+          {workspaceId && canManage && (
+            <AssetLifecycleActions
+              key={`${workspaceId}:${asset.id}`}
+              workspaceId={workspaceId}
+              asset={asset}
+            />
+          )}
 
           {workspaceId && (
             <DocumentsCard workspaceId={workspaceId} assetId={asset.id} canManage={canManage} />

@@ -66,6 +66,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/auth/oidc/config': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Public auth capabilities (e.g. SSO enabled) */
+    get: operations['getAuthMethods'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/auth/register': {
     parameters: {
       query?: never;
@@ -560,6 +577,86 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workspaces/{workspaceId}/approvals/requests': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    /** @description Requires approvals:read. */
+    get: operations['listApprovalRequests'];
+    put?: never;
+    /** @description Requires approvals:read. Creates a pending request for a guarded action. */
+    post: operations['createApprovalRequest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/approvals/requests/{requestId}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        requestId: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Requires approvals:read. Only the requester or a workspace owner/admin. */
+    post: operations['cancelApprovalRequest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/approvals/requests/{requestId}/decide': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        requestId: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Requires approvals:manage and an eligible approver role. */
+    post: operations['decideApprovalRequest'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/approvals/rules': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    /** @description Requires approvals:read. */
+    get: operations['listApprovalRules'];
+    /** @description Requires approvals:manage and an owner/admin session. */
+    put: operations['setApprovalRules'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/workspaces/{workspaceId}/assets': {
     parameters: {
       query?: never;
@@ -760,7 +857,7 @@ export interface paths {
       };
       cookie?: never;
     };
-    /** @description Requires workspace:manage. */
+    /** @description Requires audit:read (owner, admin or auditor). */
     get: operations['listWorkspaceAuditLog'];
     put?: never;
     post?: never;
@@ -1226,6 +1323,82 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workspaces/{workspaceId}/policies': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    /** @description Requires workspace:manage. Returns audit-retention and export policy. */
+    get: operations['getWorkspacePolicies'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/policies/audit-retention': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /** @description Requires audit:manage. retentionDays=null retains forever; a finite value prunes older rows when pruning runs. */
+    put: operations['setWorkspaceAuditRetention'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/policies/audit-retention/prune': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Requires audit:manage. Deletes this workspace’s audit rows older than its retention cutoff. A no-op when retention is indefinite. */
+    post: operations['pruneWorkspaceAuditLog'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/policies/export-policy': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    /** @description Requires exports:manage. Disabling blocks create/list/download; maxAgeDays expires previously generated files. */
+    put: operations['setWorkspaceExportPolicy'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/workspaces/{workspaceId}/vendors': {
     parameters: {
       query?: never;
@@ -1644,6 +1817,27 @@ export interface operations {
             title: string;
             /** @enum {string} */
             type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  getAuthMethods: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            oidcEnabled: boolean;
           };
         };
       };
@@ -3488,7 +3682,12 @@ export interface operations {
             | 'documents:read'
             | 'documents:write'
             | 'audits:manage'
+            | 'audit:read'
+            | 'audit:manage'
             | 'reports:read'
+            | 'exports:manage'
+            | 'approvals:read'
+            | 'approvals:manage'
             | 'integrations:manage'
             | 'ai:use'
             | 'ai:configure'
@@ -3518,7 +3717,12 @@ export interface operations {
               | 'documents:read'
               | 'documents:write'
               | 'audits:manage'
+              | 'audit:read'
+              | 'audit:manage'
               | 'reports:read'
+              | 'exports:manage'
+              | 'approvals:read'
+              | 'approvals:manage'
               | 'integrations:manage'
               | 'ai:use'
               | 'ai:configure'
@@ -3625,7 +3829,12 @@ export interface operations {
               | 'documents:read'
               | 'documents:write'
               | 'audits:manage'
+              | 'audit:read'
+              | 'audit:manage'
               | 'reports:read'
+              | 'exports:manage'
+              | 'approvals:read'
+              | 'approvals:manage'
               | 'integrations:manage'
               | 'ai:use'
               | 'ai:configure'
@@ -3634,6 +3843,445 @@ export interface operations {
             /** @description The opaque bearer token. It is returned once at issuance. */
             token: string;
             tokenPrefix: string;
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  listApprovalRequests: {
+    parameters: {
+      query?: {
+        resourceId?: string;
+        status?: string;
+      };
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            requests: {
+              /** @enum {string} */
+              action: 'asset.dispose' | 'asset.retire';
+              approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+              context: {
+                [key: string]: unknown;
+              };
+              /** Format: date-time */
+              createdAt: string;
+              /** Format: date-time */
+              decidedAt: string | null;
+              decisions: {
+                /** Format: uuid */
+                actorId: string | null;
+                /** Format: date-time */
+                createdAt: string;
+                /** @enum {string} */
+                decision: 'approved' | 'rejected';
+                note: string | null;
+              }[];
+              /** Format: date-time */
+              executedAt: string | null;
+              /** Format: uuid */
+              id: string;
+              /** Format: uuid */
+              requestedBy: string | null;
+              requiredApprovals: number;
+              /** Format: uuid */
+              resourceId: string | null;
+              resourceType: string;
+              selfApproval: boolean;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'executed';
+            }[];
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  createApprovalRequest: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          action: 'asset.dispose' | 'asset.retire';
+          /** @default {} */
+          context?: {
+            [key: string]: unknown;
+          };
+          /** Format: uuid */
+          resourceId: string;
+          /** @enum {string} */
+          resourceType: 'asset';
+        };
+      };
+    };
+    responses: {
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            action: 'asset.dispose' | 'asset.retire';
+            approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+            context: {
+              [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            decisions: {
+              /** Format: uuid */
+              actorId: string | null;
+              /** Format: date-time */
+              createdAt: string;
+              /** @enum {string} */
+              decision: 'approved' | 'rejected';
+              note: string | null;
+            }[];
+            /** Format: date-time */
+            executedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            requestedBy: string | null;
+            requiredApprovals: number;
+            /** Format: uuid */
+            resourceId: string | null;
+            resourceType: string;
+            selfApproval: boolean;
+            /** @enum {string} */
+            status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'executed';
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  cancelApprovalRequest: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        requestId: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            action: 'asset.dispose' | 'asset.retire';
+            approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+            context: {
+              [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            decisions: {
+              /** Format: uuid */
+              actorId: string | null;
+              /** Format: date-time */
+              createdAt: string;
+              /** @enum {string} */
+              decision: 'approved' | 'rejected';
+              note: string | null;
+            }[];
+            /** Format: date-time */
+            executedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            requestedBy: string | null;
+            requiredApprovals: number;
+            /** Format: uuid */
+            resourceId: string | null;
+            resourceType: string;
+            selfApproval: boolean;
+            /** @enum {string} */
+            status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'executed';
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  decideApprovalRequest: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        requestId: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** @enum {string} */
+          decision: 'approved' | 'rejected';
+          note?: string;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @enum {string} */
+            action: 'asset.dispose' | 'asset.retire';
+            approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+            context: {
+              [key: string]: unknown;
+            };
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            decidedAt: string | null;
+            decisions: {
+              /** Format: uuid */
+              actorId: string | null;
+              /** Format: date-time */
+              createdAt: string;
+              /** @enum {string} */
+              decision: 'approved' | 'rejected';
+              note: string | null;
+            }[];
+            /** Format: date-time */
+            executedAt: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            requestedBy: string | null;
+            requiredApprovals: number;
+            /** Format: uuid */
+            resourceId: string | null;
+            resourceType: string;
+            selfApproval: boolean;
+            /** @enum {string} */
+            status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'executed';
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  listApprovalRules: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            rules: {
+              /** @enum {string} */
+              action: 'asset.dispose' | 'asset.retire';
+              approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+              requiredApprovals: number;
+              /** @default false */
+              selfApproval: boolean;
+            }[];
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  setApprovalRules: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          rules: {
+            /** @enum {string} */
+            action: 'asset.dispose' | 'asset.retire';
+            approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+            requiredApprovals: number;
+            /** @default false */
+            selfApproval?: boolean;
+          }[];
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            rules: {
+              /** @enum {string} */
+              action: 'asset.dispose' | 'asset.retire';
+              approverRoles: ('owner' | 'admin' | 'manager' | 'member' | 'auditor')[];
+              requiredApprovals: number;
+              /** @default false */
+              selfApproval: boolean;
+            }[];
           };
         };
       };
@@ -5547,6 +6195,10 @@ export interface operations {
               /** @enum {string} */
               status: 'pending' | 'completed' | 'failed';
             }[];
+            policy: {
+              enabled: boolean;
+              maxAgeDays: number | null;
+            };
           };
         };
       };
@@ -6728,6 +7380,216 @@ export interface operations {
             channel: 'log' | 'email';
             enabled: boolean;
             event: string;
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  getWorkspacePolicies: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Null = retain audit history indefinitely. */
+            auditRetentionDays: number | null;
+            exportPolicy: {
+              enabled: boolean;
+              /** @description Null = generated exports never expire. */
+              maxAgeDays: number | null;
+            };
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  setWorkspaceAuditRetention: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          retentionDays: number | null;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Null = retain audit history indefinitely. */
+            auditRetentionDays: number | null;
+            exportPolicy: {
+              enabled: boolean;
+              /** @description Null = generated exports never expire. */
+              maxAgeDays: number | null;
+            };
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  pruneWorkspaceAuditLog: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /**
+             * Format: date-time
+             * @description Null when retention is indefinite (nothing pruned).
+             */
+            cutoff: string | null;
+            /** @description Number of audit rows deleted for this workspace. */
+            deleted: number;
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  setWorkspaceExportPolicy: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          enabled: boolean;
+          maxAgeDays: number | null;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            /** @description Null = retain audit history indefinitely. */
+            auditRetentionDays: number | null;
+            exportPolicy: {
+              enabled: boolean;
+              /** @description Null = generated exports never expire. */
+              maxAgeDays: number | null;
+            };
           };
         };
       };

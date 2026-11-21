@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AcceptInvite } from './pages/AcceptInvite';
+import { Approvals } from './pages/Approvals';
 import { AssetDetailPage } from './pages/AssetDetail';
 import { AuditDetailPage } from './pages/AuditDetail';
 import { Audits } from './pages/Audits';
@@ -37,6 +38,7 @@ export function App() {
         <Route path="audits/:auditId" element={<AuditDetailPage />} />
         <Route path="imports" element={<Imports />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="approvals" element={<Approvals />} />
         <Route path="integrations" element={<Integrations />} />
         <Route path="settings" element={<Settings />} />
         <Route path="team" element={<Team />} />

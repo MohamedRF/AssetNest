@@ -230,18 +230,43 @@ export class AuthService {
         expiresAt: sessions.expiresAt,
         revokedAt: sessions.revokedAt,
         lastSeenAt: sessions.lastSeenAt,
+        createdAt: sessions.createdAt,
       })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
       .where(eq(sessions.tokenHash, tokenHash))
       .limit(1);
 
-    if (!row || row.revokedAt || row.expiresAt <= new Date() || row.userStatus !== 'active') {
+    const now = Date.now();
+    if (!row || row.revokedAt || row.expiresAt <= new Date(now) || row.userStatus !== 'active') {
       return null;
     }
-    // Sliding lastSeenAt (throttled to at most one write per minute).
-    if (!row.lastSeenAt || Date.now() - row.lastSeenAt.getTime() > 60_000) {
-      await this.db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.sessionId));
+    // Session hardening (P6-04): idle timeout and absolute lifetime. A session
+    // that exceeds either bound is revoked and rejected, not silently renewed.
+    const idleMs = this.config.SESSION_IDLE_TIMEOUT_MINUTES * 60_000;
+    const absoluteMs = this.config.SESSION_ABSOLUTE_TIMEOUT_HOURS * 3_600_000;
+    const lastActivity = (row.lastSeenAt ?? row.createdAt).getTime();
+    const idleExpired = idleMs > 0 && now - lastActivity >= idleMs;
+    const absoluteExpired = absoluteMs > 0 && now - row.createdAt.getTime() >= absoluteMs;
+    if (idleExpired || absoluteExpired) {
+      await this.db
+        .update(sessions)
+        .set({ revokedAt: new Date(now) })
+        .where(eq(sessions.id, row.sessionId));
+      return null;
+    }
+    const touchInterval = idleMs > 0 ? Math.min(60_000, idleMs / 2) : 60_000;
+    if (!row.lastSeenAt || now - lastActivity >= touchInterval) {
+      await this.db
+        .update(sessions)
+        .set({ lastSeenAt: new Date(now) })
+        .where(
+          and(
+            eq(sessions.id, row.sessionId),
+            isNull(sessions.revokedAt),
+            row.lastSeenAt ? eq(sessions.lastSeenAt, row.lastSeenAt) : isNull(sessions.lastSeenAt),
+          ),
+        );
     }
     return {
       user: { id: row.userId, email: row.email, displayName: row.displayName },

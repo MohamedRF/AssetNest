@@ -234,10 +234,13 @@ describe('AI connection migration', () => {
         ),
       ]);
       await migrate(upgradeDb, { migrationsFolder: previousMigrationsFolder });
-      const [workspace] = await upgradeDb
-        .insert(schema.workspaces)
-        .values({ name: 'Legacy workspace', slug: 'legacy-before-ai' })
-        .returning({ id: schema.workspaces.id });
+      // Raw SQL (only pre-0023 columns): the live Drizzle schema already knows
+      // about the newer policy columns, which do not exist at this point.
+      const workspace = (
+        await upgradeDb.execute<{ id: string }>(
+          sql`insert into workspaces (name, slug) values ('Legacy workspace', 'legacy-before-ai') returning id`,
+        )
+      ).rows[0]!;
       const [legacyAsset] = await upgradeDb
         .insert(schema.assets)
         .values({ workspaceId: workspace!.id, assetTag: 'LEGACY-AI-001', displayName: 'Legacy asset' })
@@ -285,6 +288,217 @@ describe('AI connection migration', () => {
       await upgradeClient.close();
       await rm(previousMigrationsFolder, { recursive: true, force: true });
     }
+  }, 60_000);
+});
+
+describe('P6-01 workspace policy migration (0023)', () => {
+  it('adds policy columns, preserves existing rows and backfills role permissions', async () => {
+    const previousMigrationsFolder = await mkdtemp(join(tmpdir(), 'assetnest-upgrade-p6-'));
+    const upgradeClient = new PGlite();
+    const upgradeDb = drizzle(upgradeClient, { schema });
+    try {
+      const journalPath = join(migrationsFolder, 'meta', '_journal.json');
+      const journal = JSON.parse(await readFile(journalPath, 'utf8')) as {
+        entries: Array<{ idx: number; tag: string }>;
+      };
+      // Migrate only up to (and including) 0022, before the P6-01 migration.
+      const previousEntries = journal.entries.filter((entry) => entry.idx <= 22);
+      const previousMetaFolder = join(previousMigrationsFolder, 'meta');
+      await mkdir(previousMetaFolder);
+      await Promise.all([
+        writeFile(
+          join(previousMetaFolder, '_journal.json'),
+          JSON.stringify({ ...journal, entries: previousEntries }),
+        ),
+        ...previousEntries.map(({ tag }) =>
+          copyFile(join(migrationsFolder, `${tag}.sql`), join(previousMigrationsFolder, `${tag}.sql`)),
+        ),
+      ]);
+      await migrate(upgradeDb, { migrationsFolder: previousMigrationsFolder });
+
+      // Pre-existing workspace and audit row that the migration must not touch.
+      // Insert with raw SQL (only pre-0023 columns) because the live Drizzle
+      // schema already knows about the new policy columns.
+      const workspace = (
+        await upgradeDb.execute<{ id: string }>(
+          sql`insert into workspaces (name, slug) values ('Legacy policy workspace', 'legacy-policy') returning id`,
+        )
+      ).rows[0]!;
+      const oldOccurredAt = new Date('2020-01-01T00:00:00Z');
+      const [legacyAudit] = await upgradeDb
+        .insert(schema.auditLog)
+        .values({
+          workspaceId: workspace!.id,
+          action: 'legacy.action',
+          resource: 'legacy',
+          occurredAt: oldOccurredAt,
+        })
+        .returning({ id: schema.auditLog.id });
+
+      // Apply the real migration chain (includes 0023). Running twice proves idempotency.
+      await migrate(upgradeDb, { migrationsFolder });
+      await migrate(upgradeDb, { migrationsFolder });
+
+      const [after] = await upgradeDb
+        .select({
+          auditRetentionDays: schema.workspaces.auditRetentionDays,
+          exportPolicyJson: schema.workspaces.exportPolicyJson,
+        })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, workspace!.id));
+      // Existing rows get safe defaults: keep forever, exports enabled with no expiry.
+      expect(after?.auditRetentionDays).toBeNull();
+      expect(after?.exportPolicyJson).toEqual({ enabled: true, maxAgeDays: null });
+
+      const [survivingAudit] = await upgradeDb
+        .select({ occurredAt: schema.auditLog.occurredAt })
+        .from(schema.auditLog)
+        .where(eq(schema.auditLog.id, legacyAudit!.id));
+      expect(survivingAudit?.occurredAt.toISOString()).toBe(oldOccurredAt.toISOString());
+    } finally {
+      await upgradeClient.close();
+      await rm(previousMigrationsFolder, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('seedRoles mirrors the new fine-grained permissions', async () => {
+    await seedRoles(db as unknown as Database);
+    const pairs = (
+      await db.execute<{ role_key: string; permission_key: string }>(
+        sql`select role_key, permission_key from role_permissions where permission_key in ('audit:read','audit:manage','exports:manage') order by role_key, permission_key`,
+      )
+    ).rows;
+    expect(pairs).toEqual([
+      { role_key: 'admin', permission_key: 'audit:manage' },
+      { role_key: 'admin', permission_key: 'audit:read' },
+      { role_key: 'admin', permission_key: 'exports:manage' },
+      { role_key: 'auditor', permission_key: 'audit:read' },
+      { role_key: 'owner', permission_key: 'audit:manage' },
+      { role_key: 'owner', permission_key: 'audit:read' },
+      { role_key: 'owner', permission_key: 'exports:manage' },
+    ]);
+  });
+
+  it('rejects out-of-range audit retention and scopes pruning to one workspace', async () => {
+    const [wsA, wsB] = await db
+      .insert(schema.workspaces)
+      .values([
+        { name: 'Retention A', slug: 'retention-a' },
+        { name: 'Retention B', slug: 'retention-b' },
+      ])
+      .returning({ id: schema.workspaces.id });
+
+    // Constraint: finite retention must be within 1..3650.
+    await expectPgError(
+      db.update(schema.workspaces).set({ auditRetentionDays: 0 }).where(eq(schema.workspaces.id, wsA!.id)),
+      /workspaces_audit_retention_days_check/,
+    );
+    await db
+      .update(schema.workspaces)
+      .set({ auditRetentionDays: 30 })
+      .where(eq(schema.workspaces.id, wsA!.id));
+
+    const now = new Date();
+    const old = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+    const recent = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+    await db.insert(schema.auditLog).values([
+      { workspaceId: wsA!.id, action: 'a.old', resource: 'test', occurredAt: old },
+      { workspaceId: wsA!.id, action: 'a.recent', resource: 'test', occurredAt: recent },
+      { workspaceId: wsB!.id, action: 'b.old', resource: 'test', occurredAt: old },
+    ]);
+
+    const cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const deleted = await db
+      .delete(schema.auditLog)
+      .where(sql`${schema.auditLog.workspaceId} = ${wsA!.id} and ${schema.auditLog.occurredAt} < ${cutoff}`)
+      .returning({ id: schema.auditLog.id });
+    expect(deleted).toHaveLength(1);
+
+    const remainingA = await db
+      .select({ action: schema.auditLog.action })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.workspaceId, wsA!.id));
+    expect(remainingA.map((r) => r.action)).toEqual(['a.recent']);
+
+    // The other workspace's row is untouched — pruning never crosses tenants.
+    const remainingB = await db
+      .select({ action: schema.auditLog.action })
+      .from(schema.auditLog)
+      .where(eq(schema.auditLog.workspaceId, wsB!.id));
+    expect(remainingB.map((r) => r.action)).toEqual(['b.old']);
+  }, 60_000);
+});
+
+describe('P6-02 approval workflow schema (0024)', () => {
+  it('stores rules, requests and decisions with domain constraints', async () => {
+    const [ws] = await db
+      .insert(schema.workspaces)
+      .values({ name: 'Approval schema WS', slug: 'approval-schema-ws' })
+      .returning({ id: schema.workspaces.id });
+    const [approver] = await db
+      .insert(schema.users)
+      .values({ email: 'approver@test.local', displayName: 'Approver', passwordHash: null })
+      .returning({ id: schema.users.id });
+
+    await db.insert(schema.workflowRules).values({
+      workspaceId: ws!.id,
+      action: 'asset.dispose',
+      requiredApprovals: 2,
+      approverRoles: ['admin', 'manager'],
+      selfApproval: false,
+    });
+
+    const [request] = await db
+      .insert(schema.approvalRequests)
+      .values({
+        workspaceId: ws!.id,
+        action: 'asset.dispose',
+        resourceType: 'asset',
+        requiredApprovals: 2,
+        approverRoles: ['admin', 'manager'],
+        selfApproval: false,
+        contextJson: { reason: 'test' },
+      })
+      .returning({ id: schema.approvalRequests.id });
+
+    await db.insert(schema.approvalDecisions).values({
+      requestId: request!.id,
+      actorId: approver!.id,
+      decision: 'approved',
+      note: 'first',
+    });
+
+    // One decision per actor per request.
+    await expectPgError(
+      db
+        .insert(schema.approvalDecisions)
+        .values({ requestId: request!.id, actorId: approver!.id, decision: 'approved', note: 'again' }),
+      /approval_decisions_request_actor_unique/,
+    );
+
+    // Closed status/decision domains.
+    await expectPgError(
+      db
+        .update(schema.approvalRequests)
+        .set({ status: 'maybe' })
+        .where(eq(schema.approvalRequests.id, request!.id)),
+      /approval_requests_status_check/,
+    );
+    await expectPgError(
+      db.insert(schema.approvalDecisions).values({ requestId: request!.id, decision: 'maybe' }),
+      /approval_decisions_decision_check/,
+    );
+
+    // Required approval count is bounded.
+    await expectPgError(
+      db.insert(schema.workflowRules).values({
+        workspaceId: ws!.id,
+        action: 'asset.retire',
+        requiredApprovals: 0,
+        approverRoles: ['admin'],
+      }),
+      /workflow_rules_required_approvals_check/,
+    );
   }, 60_000);
 });
 

@@ -9,9 +9,32 @@ Base path `/api/v1`. OpenAPI is generated from NestJS and committed in CI as art
 ### Session / workspace
 
 - `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `POST /auth/password-reset` (if local auth enabled)
+- `GET /auth/oidc/config` (public) — `{ oidcEnabled }`
+- `GET /auth/oidc/start` (public) — 302 to the configured identity provider (PKCE + state/nonce cookies)
+- `GET /auth/oidc/callback` (public) — validates state, exchanges the code, verifies the id_token (JWKS, iss/aud/exp/nonce) and opens a local session
 - `GET /workspaces`, `POST /workspaces`, `GET/PATCH /workspaces/:workspaceId`
 - `GET/POST /workspaces/:workspaceId/members`, `PATCH/DELETE /workspaces/:workspaceId/members/:memberId`
-- `GET /workspaces/:workspaceId/roles`, `GET /workspaces/:workspaceId/audit-log`
+- `GET /workspaces/:workspaceId/roles`, `GET /workspaces/:workspaceId/audit-log` (requires `audit:read`: owner, admin, auditor)
+
+### Workspace policies (P6-01)
+
+- `GET /workspaces/:workspaceId/policies` (`workspace:manage`) — `{ auditRetentionDays: number|null, exportPolicy: { enabled, maxAgeDays } }`
+- `PUT /workspaces/:workspaceId/policies/audit-retention` (`audit:manage`) — `{ retentionDays: number|null }`; `null` = keep forever
+- `PUT /workspaces/:workspaceId/policies/export-policy` (`exports:manage`) — `{ enabled, maxAgeDays }`
+- `POST /workspaces/:workspaceId/policies/audit-retention/prune` (`audit:manage`) — deletes this workspace's audit rows older than its retention cutoff; no-op when retention is null
+
+Fine-grained permissions added in P6-01: `audit:read`, `audit:manage`, `exports:manage` (owner/admin hold all; auditor gains `audit:read`). API-token scopes accept the same keys and are bounded by the minting actor's role.
+
+### Approvals and workflow policies (P6-02)
+
+- `GET /workspaces/:workspaceId/approvals/rules` (`approvals:read`) — `{ rules: [{ action, requiredApprovals, approverRoles, selfApproval }] }`
+- `PUT /workspaces/:workspaceId/approvals/rules` (`approvals:manage`, owner/admin session) — replace the rule set
+- `GET /workspaces/:workspaceId/approvals/requests` (`approvals:read`) — `{ requests: [...] }` with optional `status` and `resourceId` filters
+- `POST /workspaces/:workspaceId/approvals/requests` (`approvals:read`) — returns 201 with a pending request for `asset.dispose` or `asset.retire` on an asset in this workspace. An active request for the same action and asset returns 409.
+- `POST /workspaces/:workspaceId/approvals/requests/:id/decide` (`approvals:manage`, eligible approver role, human only)
+- `POST /workspaces/:workspaceId/approvals/requests/:id/cancel` (requester or owner/admin)
+
+Enforcement is server-side in the asset lifecycle service: disposing/retiring an asset with a matching rule requires an approved, unexecuted request (`409 APPROVAL_REQUIRED`); the request is marked `executed` in the same transaction. Default (no rules) preserves existing behavior. Added permissions: `approvals:read`, `approvals:manage`.
 
 ### Asset catalog
 
@@ -48,7 +71,7 @@ Base path `/api/v1`. OpenAPI is generated from NestJS and committed in CI as art
 - `GET/POST /workspaces/:workspaceId/audits`; `POST /.../audits/:id/verify`; `POST /.../audits/:id/close`
 - `GET /workspaces/:workspaceId/reports/assets`, `/reports/warranties`, `/reports/maintenance`
 - `POST /workspaces/:workspaceId/imports`, `GET /.../imports/:id`, `GET /.../imports/:id/errors`
-- `POST /workspaces/:workspaceId/exports`, `GET /.../exports/:id`
+- `POST /workspaces/:workspaceId/exports`, `GET /workspaces/:workspaceId/exports` (recent eligible exports and effective policy), `GET /workspaces/:workspaceId/exports/:exportId/download`
 
 ### Integrations
 

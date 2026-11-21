@@ -20,7 +20,8 @@
     "sdk:check": "turbo build --filter=@assetnest/api && node scripts/generate-sdk.mjs --check",
     "db:generate": "pnpm --filter @assetnest/db generate",
     "db:migrate": "pnpm --filter @assetnest/db migrate",
-    "db:seed": "pnpm --filter @assetnest/db seed"
+    "db:seed": "pnpm --filter @assetnest/db seed",
+    "ops:load-test": "node scripts/load-test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
