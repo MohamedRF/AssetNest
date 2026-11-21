@@ -240,16 +240,24 @@ expose the plain-HTTP stack directly to the public internet.
 
 ## 6. Backup (read this before you trust the stack)
 
-- **Database:** the `pgdata` volume alone is not a backup. Take consistent
-  dumps, e.g. on a schedule:
+- **Database:** the `pgdata` volume alone is not a backup. Use the reference
+  scripts (P6-03): `DATABASE_URL=… STORAGE_ROOT=/data/private-files sh
+infrastructure/scripts/backup.sh` writes a custom-format dump, a private-file
+  archive and a manifest with row counts, then prunes by `RETENTION_DAYS`.
+  A quick manual equivalent is:
   `docker compose ... --profile app exec postgres pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc > assetnest-$(date +%F).dump`
-- **Private files:** copy the `private_files` volume (documents, images) —
-  database and files are useless without each other.
+- **Private files:** run the backup with the `private_files` volume accessible at
+  `STORAGE_ROOT`. The restore script finds the matching storage archive beside
+  the dump and extracts it to the configured `STORAGE_ROOT`. See
+  `DEPLOYMENT_OPERATIONS.md` for the backup and restore procedure.
 - **Keys:** `.env` holds `SESSION_SECRET` / `ENCRYPTION_KEY`. Back them up
   separately and securely; losing `ENCRYPTION_KEY` makes stored integration
   secrets unreadable.
-- **Drill restores.** Per `DEPLOYMENT_OPERATIONS.md`, never claim a backup
-  works until you have restored from it (DB dump + file blobs + credentials).
+- **Drill restores.** Run `DATABASE_URL=… sh infrastructure/scripts/drill-restore.sh`
+  (or `pnpm ops:backup-drill`): it creates throwaway databases, backs up a
+  marker asset plus a private file, drops the source, restores, and compares
+  counts and the file. Per `DEPLOYMENT_OPERATIONS.md`, never claim a backup
+  works until this drill passes.
 
 ## 7. Troubleshooting
 
