@@ -22,7 +22,7 @@ Physical audits, discrepancy handling, CSV mapping and error report, exports, sa
 
 Public OpenAPI, SDK, scoped API tokens, HMAC webhooks, delivery diagnostics, integration examples, configurable automation rules, optional MCP read-only tools. **Gate:** tokens cannot exceed scopes, replay prevention verified, API examples run.
 
-**Current status:** Phase 4 is complete. P4-01 now generates and packages a typed SDK for every REST operation (drift-free; GitHub Actions artifact upload still needs a real runner). P4-02 through P4-05 supply automated scope, replay and MCP evidence. The Node examples ran end to end; the n8n workflows still need a live run. Fresh workspace builds and Compose configuration validation passed locally. Docker image builds still need a running daemon. Phase 5 is now active and all twelve P5 tasks have recorded implementation evidence; live native/custom/local provider calls and a live LiteLLM gateway remain manual steps (no credentials in this environment). An audit-hardening pass (token admin, webhook SSRF pinning, route-bound AI consent, LiteLLM isolation, AI draft log sanitization, CSV injection/stream safety, workspace/audit invariants, per-account cache isolation, transient email retries, and the invoice approval workflow) is implemented and verified; see `TASKS.md` §Audit remediation.
+**Current status:** The typed REST SDK, token scopes, replay protection and MCP integrations have automated coverage. The Node examples ran end to end. Live GitHub Actions artifact upload and an n8n workflow run remain pending.
 
 ## Phase 5 — Universal AI ecosystem
 
@@ -34,9 +34,27 @@ Provider registry; native OpenAI/Anthropic/Gemini; OpenAI-compatible custom API;
 
 Approvals, audit export, scheduled reports, enterprise SSO, advanced roles, inventory policy templates, backups/restore verification, performance/load testing, security reviews, documentation and release automation. **Gate:** release runbook exercised, migration/rollback/restore tested, documented security acceptance.
 
+**Current status:** All five P6 tasks are implemented and verified locally.
+
+- **P6-01** — fine-grained permissions (`audit:read`/`audit:manage`/`exports:manage`), workspace-scoped audit retention with an operator-triggered prune, and workspace-scoped export policy enforced inside `ExportsService`.
+- **P6-02** — configurable approval workflows (`approvals:read`/`approvals:manage`) with migration `0024` (`workflow_rules`, `approval_requests`, `approval_decisions`), quorum/self-approval rules, and atomic enforcement on asset disposal/retirement.
+- **P6-03** — the loss-to-restore drill matched database counts and private files on disposable PostgreSQL 17. A separate upgrade preserved data from `0022` through `0025`.
+- **P6-04** — optional OIDC with PKCE, discovery, verified identity binding, and session idle and absolute timeouts. A local mock provider covers the sign-in flow.
+- **P6-05** — the PostgreSQL 17 load probe completed 120 requests with zero errors. Security headers, callback data redaction, the approval browser flow and axe accessibility have local verification.
+
+**Verification:** 392 tests passed across 14 uncached tasks (API 262, web 34, domain 26, AI 18, worker 14, contracts 14, DB 13, config 11). The local commands and migration evidence are recorded in `TASKS.md`. Live third-party OIDC, a formal benchmark, cross-engine Playwright, and operator backup scheduling or WAL/PITR remain open release checks.
+
 ## Phase 7 — Production readiness and OSS launch
 
 Install wizard/docs, example environments, admin controls, backup and upgrade procedures, licensing decision, contributor guide, changelog, release images, public demos (with synthetic data), telemetry opt-in only. **Gate:** clean install and upgrade from prior release tested on supported environments.
+
+**Current status:** P7-01, P7-02 and P7-03 are implemented and verified locally.
+
+- **P7-01** — version sync/check scripts, `CHANGELOG.md`, OCI labels on all images, and `.github/workflows/release.yml` (multi-arch GHCR publish, SPDX SBOMs, keyless cosign sign/verify, provenance attestations, GitHub release). All three images were built locally and their OCI labels inspected; the workflow itself has not run (no runner/registry/OIDC).
+- **P7-02** — MIT `LICENSE` (user-approved; ADR-013), `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`, `docs/UPGRADE.md`, README links.
+- **P7-03** — `scripts/install-check.mjs` and `scripts/demo.mjs` executed against disposable PostgreSQL 17 (install-check PASS, demo PASS), with `docs/DEMO.md` and `docs/LAUNCH_CHECKLIST.md`.
+
+**Verification:** The version check, SDK packaging, Compose configuration, Docker builds and OCI label checks passed locally. A clean install and a separate upgrade were exercised on PostgreSQL 17. Release acceptance still requires a live runner to publish and sign the images, record provenance and SBOMs, and complete the external sign-offs in `docs/LAUNCH_CHECKLIST.md`.
 
 ## Out-of-plan future initiative
 
