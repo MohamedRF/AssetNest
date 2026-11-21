@@ -36,6 +36,16 @@ RUN pnpm install --frozen-lockfile --filter @assetnest/web... \
 # ---------------------------------------------------------------------------
 FROM caddy:2-alpine
 
+ARG VERSION=0.1.0
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="AssetNest Web" \
+      org.opencontainers.image.description="AssetNest web SPA served by Caddy" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION" \
+      org.opencontainers.image.created="$CREATED" \
+      org.opencontainers.image.licenses="MIT"
+
 # Single-host routing: static SPA + /api/* and /health/* → api:3000. See comments
 # in the Caddyfile for the TLS notes (replace :80 with your hostname to enable
 # automatic HTTPS).

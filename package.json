@@ -24,7 +24,9 @@
     "db:backup": "sh infrastructure/scripts/backup.sh",
     "db:restore": "sh infrastructure/scripts/restore.sh",
     "ops:backup-drill": "sh infrastructure/scripts/drill-restore.sh",
-    "ops:load-test": "node scripts/load-test.mjs"
+    "ops:load-test": "node scripts/load-test.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "release:sync": "node scripts/sync-versions.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

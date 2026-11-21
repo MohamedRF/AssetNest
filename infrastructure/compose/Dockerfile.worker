@@ -9,6 +9,16 @@
 
 FROM node:24-alpine
 
+ARG VERSION=0.1.0
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="AssetNest Worker" \
+      org.opencontainers.image.description="AssetNest outbox relay and notification worker" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION" \
+      org.opencontainers.image.created="$CREATED" \
+      org.opencontainers.image.licenses="MIT"
+
 RUN npm install --global pnpm@10.34.9 \
  && npm cache clean --force
 

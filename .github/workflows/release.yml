@@ -1,0 +1,351 @@
+# Release workflow — build, publish, sign and ship AssetNest.
+#
+# Trigger: push a tag `vX.Y.Z` (after `pnpm release:sync X.Y.Z`, `pnpm install`,
+# updating CHANGELOG.md and committing). `workflow_dispatch` runs the verification
+# job for a manually selected ref and version.
+#
+# What it does:
+#   verify  — install (frozen), release:check, lint, sdk:check, typecheck, test,
+#             build, format check; exports openapi.json + SDK tarball as artifacts.
+#   release — multi-arch images → GHCR, SBOMs (source + each image), keyless
+#             cosign signatures, build-provenance attestations, GitHub release
+#             with the OpenAPI document, SDK tarball and SBOMs.
+#
+# Required repository permissions (Settings → Actions): read/write packages and
+# OIDC (id-token) for keyless signing. No long-lived registry secrets are used.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (must match package.json, e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '10.34.9'
+  TURBO_TELEMETRY_DISABLED: '1'
+  REGISTRY: ghcr.io
+
+jobs:
+  verify:
+    name: Verify release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify version consistency
+        run: pnpm release:check
+
+      - name: Validate release ref and version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          if [[ ! "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'The release workflow requires a stable X.Y.Z version.' >&2
+            exit 1
+          fi
+          tag="v$version"
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" != "refs/tags/$tag" ]]; then
+            printf 'Expected release tag %s to match package.json.\n' "$tag" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$REQUESTED_VERSION" != "$version" ]]; then
+            printf 'Expected manual verification version %s to match package.json.\n' "$version" >&2
+            exit 1
+          fi
+          printf 'version=%s\ntag=%s\n' "$version" "$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: OpenAPI + SDK drift check
+        run: pnpm sdk:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Export OpenAPI and pack SDK
+        run: |
+          pnpm sdk:generate
+          pnpm --filter @assetnest/sdk pack --pack-destination "$PWD/dist"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            dist/openapi.json
+            dist/assetnest-sdk-*.tgz
+          retention-days: 30
+          if-no-files-found: error
+
+  release:
+    name: Images, SBOM, signatures
+    needs: verify
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist
+
+      - name: Resolve build metadata
+        run: |
+          echo "CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
+      - name: Resolve lowercase image namespace
+        id: image
+        run: echo "owner=$(printf '%s' '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (api)
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-api
+          tags: |
+            type=raw,value=${{ needs.verify.outputs.tag }},priority=600
+            type=raw,value=latest
+            type=sha,format=short
+          labels: org.opencontainers.image.version=${{ env.VERSION }}
+
+      - name: Build and push API image
+        id: push-api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/compose/Dockerfile.api
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ env.CREATED }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker metadata (web)
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-web
+          tags: |
+            type=raw,value=${{ needs.verify.outputs.tag }},priority=600
+            type=raw,value=latest
+            type=sha,format=short
+          labels: org.opencontainers.image.version=${{ env.VERSION }}
+
+      - name: Build and push web image
+        id: push-web
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/compose/Dockerfile.web
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ env.CREATED }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Docker metadata (worker)
+        id: meta-worker
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-worker
+          tags: |
+            type=raw,value=${{ needs.verify.outputs.tag }},priority=600
+            type=raw,value=latest
+            type=sha,format=short
+          labels: org.opencontainers.image.version=${{ env.VERSION }}
+
+      - name: Build and push worker image
+        id: push-worker
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infrastructure/compose/Dockerfile.worker
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-worker.outputs.tags }}
+          labels: ${{ steps.meta-worker.outputs.labels }}
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+            CREATED=${{ env.CREATED }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Generate source SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          artifact-name: sbom-source
+          output-file: sbom-source.spdx.json
+          format: spdx-json
+          upload-artifact: true
+
+      - name: Generate API image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-api@${{ steps.push-api.outputs.digest }}
+          artifact-name: sbom-api
+          output-file: sbom-api.spdx.json
+          format: spdx-json
+          upload-artifact: true
+
+      - name: Generate web image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-web@${{ steps.push-web.outputs.digest }}
+          artifact-name: sbom-web
+          output-file: sbom-web.spdx.json
+          format: spdx-json
+          upload-artifact: true
+
+      - name: Generate worker image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-worker@${{ steps.push-worker.outputs.digest }}
+          artifact-name: sbom-worker
+          output-file: sbom-worker.spdx.json
+          format: spdx-json
+          upload-artifact: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign images (keyless)
+        run: |
+          set -euo pipefail
+          cosign sign --yes "${REGISTRY}/${{ steps.image.outputs.owner }}/assetnest-api@${{ steps.push-api.outputs.digest }}"
+          cosign sign --yes "${REGISTRY}/${{ steps.image.outputs.owner }}/assetnest-web@${{ steps.push-web.outputs.digest }}"
+          cosign sign --yes "${REGISTRY}/${{ steps.image.outputs.owner }}/assetnest-worker@${{ steps.push-worker.outputs.digest }}"
+
+      - name: Verify signatures (keyless)
+        run: |
+          set -euo pipefail
+          IDENTITY="$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF"
+          ISSUER="https://token.actions.githubusercontent.com"
+          for image in \
+            "${REGISTRY}/${{ steps.image.outputs.owner }}/assetnest-api@${{ steps.push-api.outputs.digest }}" \
+            "${REGISTRY}/${{ steps.image.outputs.owner }}/assetnest-web@${{ steps.push-web.outputs.digest }}" \
+            "${REGISTRY}/${{ steps.image.outputs.owner }}/assetnest-worker@${{ steps.push-worker.outputs.digest }}"
+          do
+            cosign verify \
+              --certificate-identity "$IDENTITY" \
+              --certificate-oidc-issuer "$ISSUER" \
+              "$image"
+          done
+
+      - name: Attest build provenance (api)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-api
+          subject-digest: ${{ steps.push-api.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest build provenance (web)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-web
+          subject-digest: ${{ steps.push-web.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest build provenance (worker)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-worker
+          subject-digest: ${{ steps.push-worker.outputs.digest }}
+          push-to-registry: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.verify.outputs.tag }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          files: |
+            dist/openapi.json
+            dist/assetnest-sdk-*.tgz
+            sbom-source.spdx.json
+            sbom-api.spdx.json
+            sbom-web.spdx.json
+            sbom-worker.spdx.json

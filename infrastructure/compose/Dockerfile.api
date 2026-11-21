@@ -18,6 +18,17 @@
 
 FROM node:24-alpine
 
+# OCI metadata (overridden at release time by docker/metadata-action).
+ARG VERSION=0.1.0
+ARG REVISION=unknown
+ARG CREATED=unknown
+LABEL org.opencontainers.image.title="AssetNest API" \
+      org.opencontainers.image.description="AssetNest HTTP API and migration runner" \
+      org.opencontainers.image.version="$VERSION" \
+      org.opencontainers.image.revision="$REVISION" \
+      org.opencontainers.image.created="$CREATED" \
+      org.opencontainers.image.licenses="MIT"
+
 # Install the version pinned in package.json ("packageManager": "pnpm@10.34.9").
 RUN npm install --global pnpm@10.34.9 \
  && npm cache clean --force
