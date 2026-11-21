@@ -1,63 +1,70 @@
-# AssetNest
+<h1 align="center">AssetNest</h1>
 
-**Self-hosted equipment and inventory management for households and teams.**
+<p align="center"><strong>Self-hosted inventory for the equipment you own, lend, and maintain.</strong></p>
 
-Track equipment from purchase through assignment, maintenance, and retirement. Use QR labels to find records, reconcile physical inventory, and keep the history of each asset in its workspace. AssetNest runs in your browser on infrastructure you control. The core app works without an AI provider or cloud account.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#product-tour">Product tour</a> ·
+  <a href="docs/INSTALL.md">Installation</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
 
-[Quick start](#quick-start) · [Docker Compose setup](infrastructure/compose/README.md) · [Product tour](#product-tour) · [Development](#development) · [Contributing](CONTRIBUTING.md)
+<p align="center">
+  <a href="https://github.com/MohamedRF/AssetNest/actions/workflows/ci.yml"><img alt="GitHub Actions CI status" src="https://github.com/MohamedRF/AssetNest/actions/workflows/ci.yml/badge.svg?branch=master"></a>
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-![AssetNest inventory screen with search, condition filters, and ten tagged assets in the Northstar Studio example workspace](docs/screenshots/inventory.png)
+<p align="center">
+  <a href="docs/screenshots/inventory.png"><img src="docs/screenshots/inventory.png" alt="AssetNest inventory in the sample Northstar Studio workspace, showing tagged equipment, status badges, search, and filters" width="1120"></a>
+</p>
 
-_The inventory in a fictional studio workspace, with available, assigned, checked-out, and in-repair equipment._
+Keep equipment records, purchase details, and documents in one place. Label assets, track who has them, and reconcile what’s physically on the shelf. AssetNest runs in your browser on infrastructure you control. Core inventory works without an AI key or a cloud account.
 
 ## Quick start
 
-You need Git and Docker with Compose v2. The reference stack includes PostgreSQL 17, Redis 7, the API, the worker, and the web app.
+You need Git and Docker with Compose v2. The reference stack includes the web app, API, worker, PostgreSQL, and Redis.
 
-1. **Get the source.**
+1. Clone the repository.
 
    ```sh
    git clone https://github.com/MohamedRF/AssetNest.git
    cd AssetNest
    ```
 
-2. **Prepare the configuration.** Follow the [Docker Compose setup guide](infrastructure/compose/README.md#1-prepare-env) using the [environment template](.env.example). For a local evaluation, the guide uses port 8080 and seeds an account with Home and Office demo workspaces.
-3. **Start the stack.** Set `ASSETNEST_CONFIG` to the absolute path of the configuration you prepared. Run these commands from the repository root after Docker has started.
+2. Copy `.env.example` to `.env` and follow the [configuration guide](infrastructure/compose/README.md#1-prepare-env) to generate secrets and set the local address. For the demo, set both seed credential variables.
+3. Start the stack and initialize workspace roles. With both seed credentials configured, the second command also creates your demo account and workspaces.
 
    ```sh
-   docker compose --env-file "$ASSETNEST_CONFIG" -f infrastructure/compose/compose.yaml --profile app up -d --build
-
-   docker compose --env-file "$ASSETNEST_CONFIG" -f infrastructure/compose/compose.yaml --profile app run --rm migrate pnpm --filter @assetnest/db seed
+   docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app up -d --build
+   docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app run --rm migrate pnpm --filter @assetnest/db seed
    ```
 
-4. **Sign in.** Open [http://127.0.0.1:8080](http://127.0.0.1:8080) with the sample local configuration. Use your seeded credentials, or follow the guide to [create the first account without demo data](infrastructure/compose/README.md#start-without-demo-workspaces).
+4. Open [http://127.0.0.1:8080](http://127.0.0.1:8080) and sign in with the credentials you set. For a fresh workspace, follow the [setup without demo data](infrastructure/compose/README.md#start-without-demo-workspaces).
 
-The [Docker Compose setup guide](infrastructure/compose/README.md) covers Bash and PowerShell configuration, readiness checks, logs, and safe shutdown. For a network-facing deployment, see [operations and backups](DEPLOYMENT_OPERATIONS.md).
+The [Compose guide](infrastructure/compose/README.md) covers PowerShell and Bash, readiness checks, and HTTPS. For an instance people will access from phones and other devices, use a reachable HTTPS address and set it as `PUBLIC_APP_URL`.
 
 ## Product tour
 
-1. **Register equipment.** Open **Assets → New asset**. Give the equipment a unique tag, such as `CAM-014`, and link a location. Use **Import CSV** to preview and validate a larger inventory before importing it.
-2. **Find and assign it.** Search for its tag, name, or serial number. Open the asset record to see the QR label, review purchase details, attach a document, or use **Assign** and **Transfer**.
-3. **Reconcile the room.** Open **Audits → New audit**, select a location, and record which items are present, missing, or moved. Use **Reports** to export the inventory as CSV.
+| Asset record                                                                                                                                                 | Inventory audit                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [![Camera kit record showing purchase details, a QR label, and assignment controls](docs/screenshots/asset-details.png)](docs/screenshots/asset-details.png) | [![Equipment room audit showing present, missing, and uncounted assets](docs/screenshots/inventory-audit.png)](docs/screenshots/inventory-audit.png) |
 
-| Asset record                                                                                                      | Physical inventory audit                                                                                              |
-| ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| ![Camera kit record with purchase details, QR label, and assignment controls](docs/screenshots/asset-details.png) | ![Equipment room count in progress with present, missing, and uncounted assets](docs/screenshots/inventory-audit.png) |
-| [Open full-size asset record](docs/screenshots/asset-details.png)                                                 | [Open full-size audit](docs/screenshots/inventory-audit.png)                                                          |
+- **Build the inventory.** Add and edit assets with unique tags, serial numbers, locations, and private documents. Record purchase prices in your chosen currency, or import an existing inventory with a CSV preview and validation.
+- **Label and find equipment.** Print QR codes from 20–100 mm or select up to 100 assets for a batch. A signed-in phone can scan from **Assets → Scan QR** over HTTPS. With report access and workspace exports enabled, download a ZIP of SVGs and matching asset details.
+- **Track custody and upkeep.** Assign, return, and transfer equipment while keeping its history. Record warranty dates, maintenance schedules, and service costs.
+- **Count what’s on site.** Open a location-based audit, mark assets present, missing, or moved, and export inventory reports as CSV.
 
-AssetNest also tracks maintenance schedules, warranties, and lifecycle history. Workspace administrators can invite members, configure OIDC, set retention and export policies, and require human approval before retirement or disposal.
+## Workspace controls and integrations
 
-## Integrations and optional AI
-
-- **REST and TypeScript SDK.** Use `/api/v1` with a workspace-scoped token created in **Integrations**. A running instance serves Swagger UI at `/api/docs` and OpenAPI JSON at `/api/docs-json`. [API contract](API_SPECIFICATION.md) · [SDK guide](packages/sdk/README.md)
-- **Webhooks and MCP.** Enable signed outbound webhooks or the optional MCP endpoint at `/api/v1/mcp`. [Integration examples](examples/README.md)
-- **AI workflows.** With `AI_ENABLED=true`, a workspace administrator can configure OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, or local Ollama. Draft asset records from invoices, suggest categories from photos, filter assets in plain language, or ask questions about an asset. Review proposals before applying them. [AI endpoint settings](DEPLOYMENT_OPERATIONS.md#ai-endpoints-in-self-hosted-networks) · [Optional LiteLLM gateway](examples/README.md#optional-litellm-gateway)
+- **Access and approvals.** Invite members with workspace roles, configure optional OIDC sign-in, and set audit retention and export policies. Require approval for retirement or disposal where your workflow calls for it. [Operations guide](DEPLOYMENT_OPERATIONS.md)
+- **API and automation.** Use workspace-scoped API tokens, the TypeScript SDK, signed webhooks, or the optional MCP endpoint. A running instance serves Swagger UI at `/api/docs` and OpenAPI JSON at `/api/docs-json`. [API specification](API_SPECIFICATION.md) · [SDK](packages/sdk/README.md) · [Examples](examples/README.md)
+- **Optional AI.** Configure OpenAI, Anthropic, Gemini, an OpenAI-compatible endpoint, or local Ollama. Use it to draft assets from invoices, suggest categories from photos, and search in plain language. Review proposed asset changes before applying them. [Provider setup](DEPLOYMENT_OPERATIONS.md#ai-endpoints-in-self-hosted-networks)
 
 ## Development
 
-AssetNest uses React, Vite, and Tailwind CSS for the [web app](apps/web), NestJS for the [API](apps/api), PostgreSQL and Drizzle for [data access](packages/db), and Redis and BullMQ for the [worker](apps/worker).
+The web app uses React, Vite, and Tailwind CSS. The NestJS API stores data in PostgreSQL through Drizzle, and the worker uses Redis and BullMQ.
 
-Use Node.js 22.12 or later and pnpm 10.34.9. Follow the [source setup instructions](docs/INSTALL.md#option-a--development-source--infra-containers) to start dependencies, configure the shell, and run migrations. The web app listens on port 5173 and the API on port 3000 by default.
+Use Node.js 22.12 or later and pnpm 10.34.9. Follow the [source setup guide](docs/INSTALL.md#option-a--development-source--infra-containers) to configure the environment, run migrations, and start the web app and API.
 
 ```sh
 pnpm lint
@@ -70,9 +77,12 @@ pnpm sdk:check
 
 ## Documentation
 
-- **Deploy and maintain** · [Docker Compose](infrastructure/compose/README.md) · [Installation options](docs/INSTALL.md) · [Operations and backups](DEPLOYMENT_OPERATIONS.md) · [Upgrades and rollback](docs/UPGRADE.md)
-- **Try and verify** · [Demo walkthrough](docs/DEMO.md) · [Release process](docs/RELEASE.md) · [Changelog](CHANGELOG.md)
-- **Contribute or get help** · [Contributing and bug reports](CONTRIBUTING.md) · [Private vulnerability reporting](SECURITY.md)
+| Task                 | Guides                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Install and maintain | [Installation options](docs/INSTALL.md) · [Docker Compose](infrastructure/compose/README.md) · [Operations and backups](DEPLOYMENT_OPERATIONS.md) · [Upgrade and rollback](docs/UPGRADE.md) |
+| Try the product      | [Demo walkthrough](docs/DEMO.md)                                                                                                                                                            |
+| Follow releases      | [Changelog](CHANGELOG.md) · [Release process](docs/RELEASE.md)                                                                                                                              |
+| Get involved         | [Contributing and bug reports](CONTRIBUTING.md) · [Private vulnerability reporting](SECURITY.md)                                                                                            |
 
 ## License
 
