@@ -7,7 +7,7 @@ This directory contains the reference deployment for AssetNest:
 | `compose.yaml`         | The stack. Two profiles: `infra` (dev) and `app` (full stack).                      |
 | `Dockerfile.api`       | Shared build for the `api` and one-shot `migrate` services.                         |
 | `Dockerfile.web`       | Vite build → Caddy static server + reverse proxy.                                   |
-| `Caddyfile`            | SPA routing + `/api/*`, `/health/*` proxy + TLS notes.                              |
+| `Caddyfile`            | SPA routing, `/api/*` proxy, liveness alias, and TLS notes.                         |
 | `compose.litellm.yaml` | Optional LiteLLM gateway overlay (profile `litellm`); see §4 — never required.      |
 | `litellm-config.yaml`  | Example single-upstream LiteLLM routing config for the overlay (mounted read-only). |
 | `README.md`            | This file.                                                                          |
@@ -84,8 +84,11 @@ PostgreSQL + Redis only; the apps run on your host:
 ```sh
 docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d
 pnpm install        # first time only (needs network)
-pnpm dev            # Turbo: API (NestJS) + web (Vite) with hot reload
 ```
+
+Follow the [source installation steps](../../docs/INSTALL.md#option-a--development-source--infra-containers)
+to export the host configuration, build the database package, migrate, and
+seed workspace roles before starting the development servers.
 
 `.env.example` already points `DATABASE_URL` at `localhost:5432` and
 `REDIS_URL` at `localhost:6379`, which matches the published ports (bound to
@@ -97,7 +100,9 @@ docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile 
 
 ## 3. Self-hosted (single host) flow (`app` profile)
 
-The full stack: postgres, redis, one-shot `migrate`, `api`, `web` (Caddy):
+The full stack includes PostgreSQL, Redis, the one-shot `migrate` job, API,
+worker, and web service. For local evaluation with the default web port, set
+`PUBLIC_APP_URL=http://localhost`.
 
 ```sh
 sh infrastructure/scripts/bootstrap-admin.sh   # pre-flight check of .env
@@ -112,27 +117,27 @@ What happens:
    (`depends_on: service_completed_successfully`).
 3. `api` starts on port 3000 (internal only), with private files on the
    `private_files` volume at `/data/private-files`.
-4. `web` (Caddy) serves the SPA on `${WEB_PORT:-80}` and proxies `/api/*` and
-   `/health/*` to the API.
+4. The worker processes background jobs. Caddy serves the web app on
+   `${WEB_PORT:-80}` and proxies `/api/*` to the API.
 
 Verify:
 
 ```sh
-curl -fsS http://localhost/health/live     # via Caddy → api
+curl -fsS http://localhost/api/v1/health/live
+curl -fsS http://localhost/api/v1/health/ready
 ```
 
-(Note: `/health/live` is provided by the API's health controller; until that
-lands, the API's healthcheck reports `unhealthy` — see compose.yaml comments.)
-
-Seed the first administrator (idempotent, empty databases only):
+Initialize the built-in workspace roles after migrations complete:
 
 ```sh
 docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app \
   run --rm migrate pnpm --filter @assetnest/db seed
 ```
 
-`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` in `.env` are used; the seed only
-creates the admin on an empty database.
+When both seed credentials are set, the command also ensures the specified
+user and demo workspaces exist. For browser sign-up on a fresh installation,
+remove both credential variables before starting the stack and run the same
+seed command to initialize the role catalog.
 
 `infrastructure/scripts/bootstrap-admin.sh` performs these pre-flight checks for
 you (file exists, secrets are not the example placeholders, key formats match

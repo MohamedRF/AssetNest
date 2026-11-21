@@ -28,12 +28,26 @@ cp .env.example .env
 #   openssl rand -base64 48   # SESSION_SECRET
 #   openssl rand -base64 32   # ENCRYPTION_KEY
 
-pnpm install
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d
+pnpm install --frozen-lockfile
+pnpm --filter @assetnest/db... build
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d --wait
+
+# In a POSIX shell, export the prepared, shell-compatible configuration.
+set -a
+. ./.env
+set +a
+
 pnpm db:migrate
-pnpm db:seed          # optional: creates SEED_ADMIN_EMAIL/PASSWORD on an empty DB
-pnpm dev              # API on :3000, web on :5173
+pnpm db:seed          # initializes workspace roles
+pnpm exec turbo run dev --env-mode=loose
 ```
+
+Edit the Compose-only PostgreSQL settings as described in the
+[Compose guide](../infrastructure/compose/README.md#1-prepare-env) and keep
+`DATABASE_URL` in sync with the published database port and credentials.
+Quote values with shell metacharacters or set the same variables directly in
+your shell. Remove both seed credential variables if you want to create the
+first account in the browser.
 
 Open <http://localhost:5173>. If you did not seed an admin, the first
 `POST /auth/register` (or the web sign-up form) creates the bootstrap account;
@@ -46,7 +60,8 @@ API, the worker and Caddy (web + `/api` + `/health`).
 
 ```sh
 cp .env.example .env
-# Edit .env (NODE_ENV=production, PUBLIC_APP_URL=https://… for TLS, strong secrets)
+# For local evaluation, set PUBLIC_APP_URL=http://localhost.
+# For HTTPS deployments, set NODE_ENV=production and the public HTTPS origin.
 # Add the compose-only values:
 #   POSTGRES_USER=assetnest
 #   POSTGRES_PASSWORD=<url-safe-password>
@@ -68,15 +83,19 @@ backups, the optional LiteLLM overlay and troubleshooting.
 
 ### First administrator
 
-The seed creates the admin only on an **empty** database and is idempotent:
+Initialize the workspace role catalog after the migration job succeeds:
 
 ```sh
 docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app \
   run --rm migrate pnpm --filter @assetnest/db seed
 ```
 
-If the database is not empty, create the first account through the web sign-up
-form (bootstrap registration), or invite a user from an existing owner account.
+Remove both `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` before starting the
+stack if you only want to initialize the role catalog. With both set, the seed
+also ensures the specified user and demo workspaces exist. Use that option on
+a disposable evaluation stack. On an empty users table, you can create the
+first account through the web sign-up form. On an existing installation, ask
+a workspace owner to invite you.
 
 ## Option C — Managed PostgreSQL / external services
 
@@ -87,11 +106,11 @@ form (bootstrap registration), or invite a user from an existing owner account.
    DATABASE_URL=postgres://… pnpm db:migrate
    ```
 4. Run the API/worker with `STORAGE_DRIVER=local` and a persistent
-   `STORAGE_ROOT`, or `STORAGE_DRIVER=s3` with an S3-compatible bucket.
+   `STORAGE_ROOT`.
 5. Put the API behind a TLS reverse proxy and set
    `PUBLIC_APP_URL=https://…` (the config layer refuses production mode with an
    `http://` public URL).
-6. Back up the database, the storage bucket and `.env` keys. Drill a restore
+6. Back up the database, private file storage and the deployment keys. Drill a restore
    with `sh infrastructure/scripts/drill-restore.sh` (see `DEPLOYMENT_OPERATIONS.md`).
 
 ## Optional: enterprise SSO (OIDC)
@@ -143,7 +162,7 @@ against a running stack. For a reproducible end-to-end install check, see
 | API exits at boot                  | Check the error list; usually a missing/short `SESSION_SECRET`, bad `ENCRYPTION_KEY`, or `NODE_ENV=production` with `http://` `PUBLIC_APP_URL`. |
 | `migrate` fails                    | Verify `DATABASE_URL`, that PostgreSQL is reachable, and that the migration job runs before the API. Never edit an applied migration.           |
 | `/api/v1/health/ready` returns 503 | The database is unreachable. Check credentials, network and TLS.                                                                                |
-| Web shows a blank page             | Rebuild the web image (`up --build`); `apps/web/dist` must be populated.                                                                        |
+| Web shows a blank page             | Rebuild and restart the web container with `up --build`.                                                                                        |
 | AI calls fail                      | AI is optional; core works with `AI_ENABLED=false`. For local models set `AI_PRIVATE_ORIGINS`.                                                  |
 | Login works but API calls 403      | Check the session cookie/CSRF header and the workspace membership/role.                                                                         |
 
