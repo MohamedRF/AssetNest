@@ -83,7 +83,7 @@ jobs:
         run: pnpm --filter @assetnest/sdk pack --pack-destination "$PWD/dist"
 
       - name: Upload OpenAPI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openapi-${{ github.sha }}
           path: dist/openapi.json
@@ -91,7 +91,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload SDK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdk-${{ github.sha }}
           path: dist/assetnest-sdk-*.tgz
