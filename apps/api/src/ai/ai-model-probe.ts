@@ -10,7 +10,8 @@ const expectedText = 'ASSETNEST_PROBE_OK';
 const expectedJson = z.strictObject({ probe: z.literal('ok') });
 const expectedColor = z.strictObject({ color: z.literal('red') });
 // A generated 64 by 64 solid red RGB PNG, with no workspace content.
-const redPng = 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC';
+const redPng =
+  'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdLep8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3IPanc8OLDQitxAAAAAElFTkSuQmCC';
 
 function matchesJson(schema: z.ZodType, text: string): boolean {
   try {
@@ -65,7 +66,8 @@ export async function verifyModelCapabilities(
       () =>
         adapter.generate({
           ...options,
-          prompt: 'Inspect the attached image. Return only a JSON object with its dominant color in the color field.',
+          prompt:
+            'Inspect the attached image. Return only a JSON object with its dominant color in the color field.',
           images: [{ mimeType: 'image/png', base64: redPng }],
         }),
       (text) => matchesJson(expectedColor, text),

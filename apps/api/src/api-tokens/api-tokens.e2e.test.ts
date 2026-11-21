@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { beforeAll, afterAll, describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, describe, expect, expectTypeOf, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
@@ -10,7 +10,7 @@ import type { INestApplication } from '@nestjs/common';
 import { loadConfig, type AppConfig } from '@assetnest/config';
 import { seedRoles, type Database } from '@assetnest/db';
 import * as schema from '@assetnest/db/schema';
-import { AssetNestClient } from '../../../../packages/sdk/src/index.js';
+import { AssetNestClient, type AssetPage, type OperationResult } from '../../../../packages/sdk/src/index.js';
 import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap.js';
 import { APP_CONFIG, DATABASE } from '../common/tokens.js';
@@ -114,6 +114,17 @@ afterAll(async () => {
 });
 
 describe('scoped API tokens (e2e)', () => {
+  it('preserves SDK types for JSON, text, downloads, and empty responses', () => {
+    expectTypeOf<OperationResult<'listAssets'>>().toEqualTypeOf<AssetPage>();
+    expectTypeOf<OperationResult<'getReadiness'>>().toEqualTypeOf<{
+      checks: { database: 'up' };
+      status: 'ready';
+    }>();
+    expectTypeOf<OperationResult<'getAssetQr'>>().toEqualTypeOf<string>();
+    expectTypeOf<OperationResult<'downloadDocument'>>().toEqualTypeOf<Blob>();
+    expectTypeOf<OperationResult<'deleteAiConnection'>>().toEqualTypeOf<void>();
+  });
+
   it('the SDK consumes typed asset responses and preserves token scope boundaries', async () => {
     const sdk = new AssetNestClient({ baseUrl: await app.getUrl(), token });
     const page = await sdk.listAssets(workspaceId, { q: 'Token-read', pageSize: 1 });
@@ -126,9 +137,9 @@ describe('scoped API tokens (e2e)', () => {
       customValues: {},
     });
     await expect(sdk.getAssetQr(workspaceId, asset.id)).resolves.toContain('<svg');
-    await expect(
-      sdk.execute('getAssetQr', { path: { workspaceId, assetId: asset.id } }),
-    ).resolves.toContain('<svg');
+    await expect(sdk.execute('getAssetQr', { path: { workspaceId, assetId: asset.id } })).resolves.toContain(
+      '<svg',
+    );
     await expect(
       sdk.execute('listAssets', { path: { workspaceId }, query: { pageSize: 1, q: 'Token-read' } }),
     ).resolves.toEqual(page);

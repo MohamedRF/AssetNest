@@ -51,8 +51,12 @@ describe('AI task contracts', () => {
     expect(invoiceDraftSchema.parse(draft).items[0]?.serialNumber).toBe('000024');
     expect(invoiceDraftSchema.safeParse({ ...draft, approved: true }).success).toBe(false);
     expect(
-      photoDraftSchema.safeParse({ category: null, model: null, visibleSerial: { value: '007' }, confidence: 1 })
-        .success,
+      photoDraftSchema.safeParse({
+        category: null,
+        model: null,
+        visibleSerial: { value: '007' },
+        confidence: 1,
+      }).success,
     ).toBe(false);
   });
 });

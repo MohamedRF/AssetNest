@@ -189,7 +189,10 @@ export class AssetNestClient {
 
     const headers = new Headers(options.headers);
     if (!headers.has('Accept')) {
-      headers.set('Accept', options.format === 'text' ? 'image/svg+xml' : options.responseFormats ? '*/*' : 'application/json');
+      headers.set(
+        'Accept',
+        options.format === 'text' ? 'image/svg+xml' : options.responseFormats ? '*/*' : 'application/json',
+      );
     }
     if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
     if (options.csrfToken) headers.set('X-CSRF-Token', options.csrfToken);

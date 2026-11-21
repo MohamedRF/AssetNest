@@ -19,13 +19,16 @@ describe('AI provider egress policy', () => {
       'https://user:password@8.8.8.8',
       'https://8.8.8.8?key=example',
     ]) {
-      await expect(validateProviderEndpoint('ollama', endpoint, [new URL(endpoint).origin])).rejects.toMatchObject({
+      await expect(
+        validateProviderEndpoint('ollama', endpoint, [new URL(endpoint).origin]),
+      ).rejects.toMatchObject({
         code: 'invalid_endpoint',
       });
     }
     const local = 'http://127.0.0.1:11434';
     await expect(validateProviderEndpoint('ollama', `${local}/models`, [local])).resolves.toHaveProperty(
-      'origin', local,
+      'origin',
+      local,
     );
   });
 
@@ -46,7 +49,8 @@ describe('AI provider egress policy', () => {
       if (!address || typeof address === 'string') throw new Error('Expected a TCP listener');
       const origin = `http://127.0.0.1:${address.port}`;
       const transport = createProviderTransport('openai_compatible', `${origin}/v1`, 'fixture', [origin]);
-      const query = (path: string) => transport.request({ path, method: 'GET', signal: AbortSignal.timeout(2_000) });
+      const query = (path: string) =>
+        transport.request({ path, method: 'GET', signal: AbortSignal.timeout(2_000) });
       await expect(query('/models')).resolves.toEqual({ data: [] });
       await expect(query('/redirect')).rejects.toMatchObject({ code: 'unavailable' });
       await expect(query('/../secret')).rejects.toMatchObject({ code: 'invalid_endpoint' });

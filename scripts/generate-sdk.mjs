@@ -18,7 +18,10 @@ for (const [path, item] of Object.entries(document.paths)) {
     const id = operation.operationId;
     if (!id || Object.hasOwn(operations, id)) throw new Error(`Invalid operation ID for ${method} ${path}`);
     const requestMedia = Object.keys(operation.requestBody?.content ?? {});
-    if (requestMedia.length > 1 || requestMedia.some((media) => !['application/json', 'multipart/form-data'].includes(media))) {
+    if (
+      requestMedia.length > 1 ||
+      requestMedia.some((media) => !['application/json', 'multipart/form-data'].includes(media))
+    ) {
       throw new Error(`Unsupported SDK request media for ${id}`);
     }
     const responseFormats = {};
@@ -32,9 +35,11 @@ for (const [path, item] of Object.entries(document.paths)) {
       if (content.length === 0 || content.some(([, media]) => !media.schema)) {
         throw new Error(`Missing success response schema for ${method} ${path} (${status})`);
       }
-      const formats = new Set(content.map(([media, { schema }]) =>
-        schema.format === 'binary' ? 'blob' : media.includes('json') ? 'json' : 'text',
-      ));
+      const formats = new Set(
+        content.map(([media, { schema }]) =>
+          schema.format === 'binary' ? 'blob' : media.includes('json') ? 'json' : 'text',
+        ),
+      );
       if (formats.size !== 1) throw new Error(`Ambiguous SDK response format for ${id} (${status})`);
       responseFormats[status] = [...formats][0];
     }

@@ -46,7 +46,10 @@ export class AiRoutesService {
         .from(aiModels)
         .innerJoin(
           aiConnections,
-          and(eq(aiConnections.workspaceId, aiModels.workspaceId), eq(aiConnections.id, aiModels.connectionId)),
+          and(
+            eq(aiConnections.workspaceId, aiModels.workspaceId),
+            eq(aiConnections.id, aiModels.connectionId),
+          ),
         )
         .where(and(eq(aiModels.workspaceId, ctx.workspaceId), inArray(aiModels.id, modelIds)))
         .orderBy(asc(aiModels.id))

@@ -33,20 +33,19 @@ export type OperationOptions<T extends OperationId> = PathArguments<operations[T
     headers?: ConstructorParameters<typeof Headers>[0];
   };
 
-type ResponseValue<Response> = Response extends { content: infer Content }
-  ? Content[keyof Content]
-  : void;
+type ResponseValue<Response> = Response extends { content: infer Content } ? Content[keyof Content] : void;
 
-type SuccessStatus = 200 | 201 | 202 | 203 | 204 | 205 | 206;
 type Registry = typeof restOperations;
-type ResultForStatus<T extends OperationId, Status extends keyof operations[T]['responses']> =
-  Status extends keyof Registry[T]['responseFormats']
-    ? Registry[T]['responseFormats'][Status] extends 'blob'
+// The OpenAPI types use numeric keys; the JSON-generated registry uses strings.
+type ResultForStatus<
+  T extends OperationId,
+  Status extends keyof operations[T]['responses'],
+> = Status extends number
+  ? `${Status}` extends keyof Registry[T]['responseFormats']
+    ? Registry[T]['responseFormats'][`${Status}`] extends 'blob'
       ? Blob
       : ResponseValue<operations[T]['responses'][Status]>
-    : never;
+    : never
+  : never;
 
-export type OperationResult<T extends OperationId> = ResultForStatus<
-  T,
-  Extract<keyof operations[T]['responses'], SuccessStatus>
->;
+export type OperationResult<T extends OperationId> = ResultForStatus<T, keyof operations[T]['responses']>;

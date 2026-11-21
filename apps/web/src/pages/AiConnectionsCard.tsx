@@ -91,41 +91,79 @@ function ConnectionEditor({
   }
 
   return (
-    <Dialog open onClose={() => { if (!saving) close(); }} title={connection ? 'Edit AI connection' : 'Add AI connection'}>
+    <Dialog
+      open
+      onClose={() => {
+        if (!saving) close();
+      }}
+      title={connection ? 'Edit AI connection' : 'Add AI connection'}
+    >
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
         <div className="space-y-1">
           <Label htmlFor="ai-connection-name">Name</Label>
-          <Input id="ai-connection-name" value={name} onChange={(event) => setName(event.target.value)}
-            required maxLength={120} />
+          <Input
+            id="ai-connection-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+            maxLength={120}
+          />
         </div>
         <div className="space-y-1">
           <Label htmlFor="ai-provider-kind">Provider</Label>
-          <Select id="ai-provider-kind" value={kind} disabled={connection !== null}
-            onChange={(event) => setKind(event.target.value as ProviderKind)}>
-            {Object.entries(providerLabels).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          <Select
+            id="ai-provider-kind"
+            value={kind}
+            disabled={connection !== null}
+            onChange={(event) => setKind(event.target.value as ProviderKind)}
+          >
+            {Object.entries(providerLabels).map(([id, label]) => (
+              <option key={id} value={id}>
+                {label}
+              </option>
+            ))}
           </Select>
         </div>
         {isCustom(kind) && (
           <div className="space-y-1">
             <Label htmlFor="ai-provider-endpoint">Base URL</Label>
-            <Input id="ai-provider-endpoint" type="url" required value={endpoint} maxLength={2048}
+            <Input
+              id="ai-provider-endpoint"
+              type="url"
+              required
+              value={endpoint}
+              maxLength={2048}
               placeholder={kind === 'ollama' ? 'http://ollama:11434' : 'https://provider.example/v1'}
-              onChange={(event) => setEndpoint(event.target.value)} />
+              onChange={(event) => setEndpoint(event.target.value)}
+            />
           </div>
         )}
         <div className="space-y-1">
           <Label htmlFor="ai-provider-key">{connection?.hasCredential ? 'Replace API key' : 'API key'}</Label>
-          <Input id="ai-provider-key" type="password" autoComplete="new-password" maxLength={4096}
-            disabled={forgetKey} required={!isCustom(kind) && !connection?.hasCredential}
-            value={credential} onChange={(event) => setCredential(event.target.value)} />
-          {connection?.hasCredential && <p className="text-xs text-muted-foreground">A key is stored. Leave blank to keep it.</p>}
+          <Input
+            id="ai-provider-key"
+            type="password"
+            autoComplete="new-password"
+            maxLength={4096}
+            disabled={forgetKey}
+            required={!isCustom(kind) && !connection?.hasCredential}
+            value={credential}
+            onChange={(event) => setCredential(event.target.value)}
+          />
+          {connection?.hasCredential && (
+            <p className="text-xs text-muted-foreground">A key is stored. Leave blank to keep it.</p>
+          )}
         </div>
         {isCustom(kind) && connection?.hasCredential && (
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={forgetKey} onChange={(event) => {
-              setForgetKey(event.target.checked);
-              setCredential('');
-            }} />
+            <input
+              type="checkbox"
+              checked={forgetKey}
+              onChange={(event) => {
+                setForgetKey(event.target.checked);
+                setCredential('');
+              }}
+            />
             Remove stored API key
           </label>
         )}
@@ -133,10 +171,18 @@ function ConnectionEditor({
           <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
           Connection enabled
         </label>
-        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-danger">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" disabled={saving} onClick={close}>Cancel</Button>
-          <Button type="submit" disabled={saving || !name.trim()}>Save connection</Button>
+          <Button type="button" variant="outline" disabled={saving} onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={saving || !name.trim()}>
+            Save connection
+          </Button>
         </div>
       </form>
     </Dialog>
@@ -155,7 +201,11 @@ export function AiConnectionsCard({
   const [editor, setEditor] = useState<Connection | null | undefined>();
   const [deleting, setDeleting] = useState<Connection>();
   const [busy, setBusy] = useState<string>();
-  const [status, setStatus] = useState<{ bad?: boolean; message: string; models?: ConnectionCheck['models'] }>();
+  const [status, setStatus] = useState<{
+    bad?: boolean;
+    message: string;
+    models?: ConnectionCheck['models'];
+  }>();
   const connections = useQuery({
     queryKey: cacheKey,
     enabled: Boolean(workspaceId && canConfigure),
@@ -202,32 +252,72 @@ export function AiConnectionsCard({
         <Sparkles aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
         <div className="space-y-1">
           <CardTitle>AI connections</CardTitle>
-          <CardDescription>Connect a provider using API access. Consumer subscriptions may require a separate API key.</CardDescription>
+          <CardDescription>
+            Connect a provider using API access. Consumer subscriptions may require a separate API key.
+          </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {!workspaceId && <p className="text-sm text-muted-foreground">Select a workspace to configure providers.</p>}
-        {workspaceId && !canConfigure && <p className="text-sm text-muted-foreground">Workspace owners and admins can manage connections.</p>}
+        {!workspaceId && (
+          <p className="text-sm text-muted-foreground">Select a workspace to configure providers.</p>
+        )}
+        {workspaceId && !canConfigure && (
+          <p className="text-sm text-muted-foreground">Workspace owners and admins can manage connections.</p>
+        )}
         {disabled && <p className="text-sm text-muted-foreground">AI is disabled on this deployment.</p>}
-        {connections.isFetching && !connections.data && <p role="status" className="text-sm">Loading connections…</p>}
-        {connections.isError && !disabled && <p role="alert" className="text-sm text-danger">{displayError(connections.error, 'Could not load connections.')}</p>}
+        {connections.isFetching && !connections.data && (
+          <p role="status" className="text-sm">
+            Loading connections…
+          </p>
+        )}
+        {connections.isError && !disabled && (
+          <p role="alert" className="text-sm text-danger">
+            {displayError(connections.error, 'Could not load connections.')}
+          </p>
+        )}
         {connections.data && (
           <>
-            {connections.data.connections.length === 0 && <p className="text-sm text-muted-foreground">No connections yet.</p>}
+            {connections.data.connections.length === 0 && (
+              <p className="text-sm text-muted-foreground">No connections yet.</p>
+            )}
             <ul className="space-y-2">
               {connections.data.connections.map((connection) => (
                 <li key={connection.id} className="rounded-md border border-border p-3 space-y-2">
                   <div className="break-words text-sm">
                     <strong>{connection.name}</strong>
                     <p className="text-xs text-muted-foreground">
-                      {providerLabels[connection.kind]} · {connection.enabled ? 'Enabled' : 'Disabled'} · {connection.hasCredential ? 'API key stored' : 'No API key'}
+                      {providerLabels[connection.kind]} · {connection.enabled ? 'Enabled' : 'Disabled'} ·{' '}
+                      {connection.hasCredential ? 'API key stored' : 'No API key'}
                     </p>
-                    {connection.endpoint && <p className="break-all text-xs text-muted-foreground">{connection.endpoint}</p>}
+                    {connection.endpoint && (
+                      <p className="break-all text-xs text-muted-foreground">{connection.endpoint}</p>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" disabled={!connection.enabled || !!busy} onClick={() => void test(connection)}>Test connection</Button>
-                    <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setEditor(connection)}>Edit</Button>
-                    <Button variant="outline" size="sm" disabled={!!busy} onClick={() => setDeleting(connection)}>Remove</Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!connection.enabled || !!busy}
+                      onClick={() => void test(connection)}
+                    >
+                      Test connection
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!!busy}
+                      onClick={() => setEditor(connection)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!!busy}
+                      onClick={() => setDeleting(connection)}
+                    >
+                      Remove
+                    </Button>
                   </div>
                 </li>
               ))}
@@ -239,23 +329,39 @@ export function AiConnectionsCard({
           </>
         )}
         {status && (
-          <div role={status.bad ? 'alert' : 'status'} className={status.bad ? 'text-sm text-danger' : 'text-sm'}>
+          <div
+            role={status.bad ? 'alert' : 'status'}
+            className={status.bad ? 'text-sm text-danger' : 'text-sm'}
+          >
             <p>{status.message}</p>
             {status.models?.length === 0 && <p>No models were returned.</p>}
             {status.models && status.models.length > 0 && (
               <ul className="mt-1 max-h-40 overflow-y-auto text-xs text-muted-foreground">
-                {status.models.map((model) => <li key={model.id}>{model.label}</li>)}
+                {status.models.map((model) => (
+                  <li key={model.id}>{model.label}</li>
+                ))}
               </ul>
             )}
           </div>
         )}
       </CardContent>
       {workspaceId && editor !== undefined && (
-        <ConnectionEditor workspaceId={workspaceId} connection={editor} close={() => setEditor(undefined)} saved={refresh} />
+        <ConnectionEditor
+          workspaceId={workspaceId}
+          connection={editor}
+          close={() => setEditor(undefined)}
+          saved={refresh}
+        />
       )}
       {deleting && (
-        <ConfirmDialog open title="Remove AI connection" description={`Remove ${deleting.name} and its stored API key?`}
-          confirmLabel="Remove connection" onClose={() => setDeleting(undefined)} onConfirm={() => void remove(deleting)} />
+        <ConfirmDialog
+          open
+          title="Remove AI connection"
+          description={`Remove ${deleting.name} and its stored API key?`}
+          confirmLabel="Remove connection"
+          onClose={() => setDeleting(undefined)}
+          onConfirm={() => void remove(deleting)}
+        />
       )}
     </Card>
   );

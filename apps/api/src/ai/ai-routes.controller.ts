@@ -1,5 +1,24 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Put, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiParam, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBody,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import { aiTaskSchema, type AITask } from '@assetnest/ai';
 import type { PublicUser } from '../auth/auth.service.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';

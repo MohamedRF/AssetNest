@@ -41,18 +41,26 @@ export const invoiceDraftSchema = z.strictObject({
   vendor: shortText.nullable(),
   invoiceNo: shortText.nullable(),
   purchaseDate: z.iso.date().nullable(),
-  currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
-  items: z.array(
-    z.strictObject({
-      name: shortText,
-      model: shortText.nullable(),
-      serialNumber: shortText.nullable(),
-      price: z.string().regex(/^\d{1,16}(\.\d{1,2})?$/).nullable(),
-      warrantyEndsOn: z.iso.date().nullable(),
-      confidence,
-      evidence: z.string().trim().min(1).max(500).nullable(),
-    }),
-  ).max(100),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .nullable(),
+  items: z
+    .array(
+      z.strictObject({
+        name: shortText,
+        model: shortText.nullable(),
+        serialNumber: shortText.nullable(),
+        price: z
+          .string()
+          .regex(/^\d{1,16}(\.\d{1,2})?$/)
+          .nullable(),
+        warrantyEndsOn: z.iso.date().nullable(),
+        confidence,
+        evidence: z.string().trim().min(1).max(500).nullable(),
+      }),
+    )
+    .max(100),
 });
 
 export const photoDraftSchema = z.strictObject({
@@ -64,7 +72,11 @@ export const photoDraftSchema = z.strictObject({
 
 const assetFilter = z.discriminatedUnion('field', [
   z.strictObject({ field: z.literal('search'), operator: z.literal('contains'), value: shortText }),
-  z.strictObject({ field: z.literal('status'), operator: z.literal('equals'), value: z.enum(ASSET_STATUSES) }),
+  z.strictObject({
+    field: z.literal('status'),
+    operator: z.literal('equals'),
+    value: z.enum(ASSET_STATUSES),
+  }),
   z.strictObject({
     field: z.literal('condition'),
     operator: z.literal('equals'),
@@ -74,10 +86,13 @@ const assetFilter = z.discriminatedUnion('field', [
 
 /** A flat AND list over the existing inventory filters. No executable expressions. */
 export const assetFilterSchema = z.strictObject({
-  filters: z.array(assetFilter).max(3).refine(
-    (filters) => new Set(filters.map(({ field }) => field)).size === filters.length,
-    'Each field can appear only once',
-  ),
+  filters: z
+    .array(assetFilter)
+    .max(3)
+    .refine(
+      (filters) => new Set(filters.map(({ field }) => field)).size === filters.length,
+      'Each field can appear only once',
+    ),
 });
 
 export const taskOutputSchemas = {

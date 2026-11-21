@@ -3,7 +3,12 @@ import { z } from 'zod';
 
 export const modelIdParamSchema = z.uuid();
 
-const modelField = z.string().trim().min(1).max(255).regex(/^[^\p{Cc}\p{Cf}]+$/u);
+const modelField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[^\p{Cc}\p{Cf}]+$/u);
 export const createAiModelSchema = z.strictObject({
   connectionId: z.uuid(),
   modelId: modelField,

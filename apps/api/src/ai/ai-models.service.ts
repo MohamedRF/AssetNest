@@ -59,7 +59,9 @@ export class AiModelsService {
         const [connection] = await tx
           .select({ id: aiConnections.id })
           .from(aiConnections)
-          .where(and(eq(aiConnections.workspaceId, ctx.workspaceId), eq(aiConnections.id, input.connectionId)))
+          .where(
+            and(eq(aiConnections.workspaceId, ctx.workspaceId), eq(aiConnections.id, input.connectionId)),
+          )
           .for('share');
         if (!connection) {
           throw httpCode(HttpStatus.NOT_FOUND, 'AI connection not found', 'AI_CONNECTION_NOT_FOUND');
@@ -115,15 +117,31 @@ export class AiModelsService {
       .limit(1);
     if (!snapshot) throw httpCode(HttpStatus.NOT_FOUND, 'AI model not found', 'AI_MODEL_NOT_FOUND');
     if (!snapshot.enabled) {
-      throw httpCode(HttpStatus.CONFLICT, 'Enable the AI connection before testing its model', 'AI_CONNECTION_DISABLED');
+      throw httpCode(
+        HttpStatus.CONFLICT,
+        'Enable the AI connection before testing its model',
+        'AI_CONNECTION_DISABLED',
+      );
     }
 
     let capabilities: ModelCapabilities;
     try {
-      const credential = snapshot.credential ? decryptSecret(snapshot.credential, this.config.ENCRYPTION_KEY) : null;
-      const transport = this.transport(snapshot.kind, snapshot.endpoint, credential, this.config.AI_PRIVATE_ORIGINS);
+      const credential = snapshot.credential
+        ? decryptSecret(snapshot.credential, this.config.ENCRYPTION_KEY)
+        : null;
+      const transport = this.transport(
+        snapshot.kind,
+        snapshot.endpoint,
+        credential,
+        this.config.AI_PRIVATE_ORIGINS,
+      );
       const adapter = this.registry.connect(snapshot.kind, transport);
-      capabilities = await verifyModelCapabilities(adapter, snapshot.modelId, AbortSignal.timeout(20_000), input.probeImage);
+      capabilities = await verifyModelCapabilities(
+        adapter,
+        snapshot.modelId,
+        AbortSignal.timeout(20_000),
+        input.probeImage,
+      );
     } catch (error) {
       const { code, exception } = providerTestFailure(error);
       await writeAuditLog(this.db, {
@@ -146,7 +164,10 @@ export class AiModelsService {
         .from(aiModels)
         .innerJoin(
           aiConnections,
-          and(eq(aiConnections.workspaceId, aiModels.workspaceId), eq(aiConnections.id, aiModels.connectionId)),
+          and(
+            eq(aiConnections.workspaceId, aiModels.workspaceId),
+            eq(aiConnections.id, aiModels.connectionId),
+          ),
         )
         .where(scoped)
         .for('update');
@@ -155,7 +176,11 @@ export class AiModelsService {
         current.modelUpdatedAt.getTime() !== snapshot.modelUpdatedAt.getTime() ||
         current.connectionUpdatedAt.getTime() !== snapshot.connectionUpdatedAt.getTime()
       ) {
-        throw httpCode(HttpStatus.CONFLICT, 'The model or connection changed during the test', 'AI_MODEL_TEST_STALE');
+        throw httpCode(
+          HttpStatus.CONFLICT,
+          'The model or connection changed during the test',
+          'AI_MODEL_TEST_STALE',
+        );
       }
 
       const [updated] = await tx

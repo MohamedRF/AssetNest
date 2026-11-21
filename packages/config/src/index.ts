@@ -14,23 +14,37 @@ const boolFromString = z
   .default('false')
   .transform((v) => v === 'true');
 
-const privateAiOrigins = z.string().default('').transform((value, ctx) => {
-  const origins = new Set<string>();
-  for (const entry of value.split(',').map((part) => part.trim()).filter(Boolean)) {
-    try {
-      const url = new URL(entry);
-      if (
-        !['https:', 'http:'].includes(url.protocol) ||
-        url.username || url.password || url.search || url.hash || url.pathname !== '/'
-      ) throw new Error('Expected an HTTP(S) origin');
-      origins.add(url.origin);
-    } catch {
-      ctx.addIssue({ code: 'custom', message: 'Expected comma-separated HTTP(S) origins without credentials or paths' });
-      return z.NEVER;
+const privateAiOrigins = z
+  .string()
+  .default('')
+  .transform((value, ctx) => {
+    const origins = new Set<string>();
+    for (const entry of value
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)) {
+      try {
+        const url = new URL(entry);
+        if (
+          !['https:', 'http:'].includes(url.protocol) ||
+          url.username ||
+          url.password ||
+          url.search ||
+          url.hash ||
+          url.pathname !== '/'
+        )
+          throw new Error('Expected an HTTP(S) origin');
+        origins.add(url.origin);
+      } catch {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Expected comma-separated HTTP(S) origins without credentials or paths',
+        });
+        return z.NEVER;
+      }
     }
-  }
-  return [...origins];
-});
+    return [...origins];
+  });
 
 const base64Key32 = z.string().refine(
   (v) => {

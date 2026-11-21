@@ -62,7 +62,8 @@ export class AiModelsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     operationId: 'testAiModel',
-    description: 'Verify model capabilities with synthetic samples. Requires a workspace administrator session.',
+    description:
+      'Verify model capabilities with synthetic samples. Requires a workspace administrator session.',
   })
   @ApiParam({ name: 'modelId', schema: openApiSchema(modelIdParamSchema, 'input') })
   @ApiBody({ required: false, schema: openApiSchema(testAiModelSchema, 'input') })

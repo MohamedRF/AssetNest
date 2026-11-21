@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Header, HttpCode, HttpStatus, Inject, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { aiTaskSchema, taskOutputSchemas } from '@assetnest/ai';
 import { z } from 'zod';
@@ -18,10 +29,16 @@ const documentBody = z.strictObject({ documentId: z.uuid(), consent: z.boolean()
 const jobIdParamSchema = z.uuid();
 const draftResponse = (draft: z.ZodType) => openApiSchema(z.object({ jobId: jobIdParamSchema, draft }));
 const jobResponse = z.object({
-  id: z.uuid(), task: aiTaskSchema, status: z.enum(['running', 'succeeded', 'failed']),
-  sourceDocumentId: z.uuid().nullable(), inputTokens: z.int().nullable(), outputTokens: z.int().nullable(),
-  errorCode: z.string().nullable(), durationMs: z.int().nullable(),
-  createdAt: z.iso.datetime(), finishedAt: z.iso.datetime().nullable(),
+  id: z.uuid(),
+  task: aiTaskSchema,
+  status: z.enum(['running', 'succeeded', 'failed']),
+  sourceDocumentId: z.uuid().nullable(),
+  inputTokens: z.int().nullable(),
+  outputTokens: z.int().nullable(),
+  errorCode: z.string().nullable(),
+  durationMs: z.int().nullable(),
+  createdAt: z.iso.datetime(),
+  finishedAt: z.iso.datetime().nullable(),
 });
 
 @ApiTags('AI')
@@ -40,7 +57,8 @@ export class AiTasksController {
   @ApiBody({ schema: openApiSchema(queryBody, 'input') })
   @ApiOkResponse({ schema: draftResponse(taskOutputSchemas.natural_language_search) })
   query(
-    @CurrentWorkspace() ctx: WorkspaceContext, @CurrentUser() user: PublicUser,
+    @CurrentWorkspace() ctx: WorkspaceContext,
+    @CurrentUser() user: PublicUser,
     @Body(new ZodValidationPipe(queryBody)) body: z.output<typeof queryBody>,
   ) {
     return this.drafts.query(ctx, user.id, body.question, body.consent);
@@ -53,7 +71,8 @@ export class AiTasksController {
   @ApiBody({ schema: openApiSchema(chatBody, 'input') })
   @ApiOkResponse({ schema: draftResponse(taskOutputSchemas.asset_chat) })
   chat(
-    @CurrentWorkspace() ctx: WorkspaceContext, @CurrentUser() user: PublicUser,
+    @CurrentWorkspace() ctx: WorkspaceContext,
+    @CurrentUser() user: PublicUser,
     @Body(new ZodValidationPipe(chatBody)) body: z.output<typeof chatBody>,
   ) {
     return this.drafts.chat(ctx, user.id, body.question, body.assetIds, body.consent);
@@ -67,7 +86,8 @@ export class AiTasksController {
   @ApiBody({ schema: openApiSchema(documentBody, 'input') })
   @ApiOkResponse({ schema: draftResponse(taskOutputSchemas.invoice_extraction) })
   invoice(
-    @CurrentWorkspace() ctx: WorkspaceContext, @CurrentUser() user: PublicUser,
+    @CurrentWorkspace() ctx: WorkspaceContext,
+    @CurrentUser() user: PublicUser,
     @Body(new ZodValidationPipe(documentBody)) body: z.output<typeof documentBody>,
   ) {
     return this.drafts.invoice(ctx, user.id, body.documentId, body.consent);
@@ -81,7 +101,8 @@ export class AiTasksController {
   @ApiBody({ schema: openApiSchema(documentBody, 'input') })
   @ApiOkResponse({ schema: draftResponse(taskOutputSchemas.image_tagging) })
   photo(
-    @CurrentWorkspace() ctx: WorkspaceContext, @CurrentUser() user: PublicUser,
+    @CurrentWorkspace() ctx: WorkspaceContext,
+    @CurrentUser() user: PublicUser,
     @Body(new ZodValidationPipe(documentBody)) body: z.output<typeof documentBody>,
   ) {
     return this.drafts.photo(ctx, user.id, body.documentId, body.consent);
@@ -92,7 +113,8 @@ export class AiTasksController {
   @ApiOperation({ operationId: 'getOwnAiJob' })
   @ApiOkResponse({ schema: openApiSchema(jobResponse) })
   getJob(
-    @CurrentWorkspace() ctx: WorkspaceContext, @CurrentUser() user: PublicUser,
+    @CurrentWorkspace() ctx: WorkspaceContext,
+    @CurrentUser() user: PublicUser,
     @Param('jobId', new ZodValidationPipe(jobIdParamSchema)) id: string,
   ) {
     return this.drafts.getOwnJob(ctx, user.id, id);

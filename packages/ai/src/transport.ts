@@ -12,21 +12,40 @@ const nativeEndpoints = {
 
 const denyIpv4 = new BlockList();
 for (const [address, prefix] of [
-  ['0.0.0.0', 8], ['169.254.0.0', 16], ['224.0.0.0', 3],
-] as const) denyIpv4.addSubnet(address, prefix, 'ipv4');
+  ['0.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['224.0.0.0', 3],
+] as const)
+  denyIpv4.addSubnet(address, prefix, 'ipv4');
 
 const privateIpv4 = new BlockList();
 for (const [address, prefix] of [
-  ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['172.16.0.0', 12],
-  ['192.0.0.0', 24], ['192.0.2.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15],
-  ['198.51.100.0', 24], ['203.0.113.0', 24],
-] as const) privateIpv4.addSubnet(address, prefix, 'ipv4');
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.0.2.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+] as const)
+  privateIpv4.addSubnet(address, prefix, 'ipv4');
 
 const denyIpv6 = new BlockList();
 for (const [address, prefix] of [
-  ['::', 128], ['::ffff:0:0', 96], ['64:ff9b::', 96], ['64:ff9b:1::', 48],
-  ['2001::', 32], ['2002::', 16], ['fe80::', 10], ['ff00::', 8], ['fd00:ec2::254', 128],
-] as const) denyIpv6.addSubnet(address, prefix, 'ipv6');
+  ['::', 128],
+  ['::ffff:0:0', 96],
+  ['64:ff9b::', 96],
+  ['64:ff9b:1::', 48],
+  ['2001::', 32],
+  ['2002::', 16],
+  ['fe80::', 10],
+  ['ff00::', 8],
+  ['fd00:ec2::254', 128],
+] as const)
+  denyIpv6.addSubnet(address, prefix, 'ipv6');
 
 const globalIpv6 = new BlockList();
 globalIpv6.addSubnet('2000::', 3, 'ipv6');
@@ -47,10 +66,8 @@ function parseEndpoint(rawEndpoint: string): URL {
   } catch {
     throw new AIProviderError('invalid_endpoint');
   }
-  if (
-    !['https:', 'http:'].includes(url.protocol) ||
-    url.username || url.password || url.search || url.hash
-  ) throw new AIProviderError('invalid_endpoint');
+  if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash)
+    throw new AIProviderError('invalid_endpoint');
   return url;
 }
 
@@ -58,10 +75,12 @@ function allowedAddress({ address, family }: Address, privateAllowed: boolean): 
   if (family === 4) {
     return !denyIpv4.check(address, 'ipv4') && (privateAllowed || !privateIpv4.check(address, 'ipv4'));
   }
-  return family === 6 &&
+  return (
+    family === 6 &&
     !denyIpv6.check(address, 'ipv6') &&
     !blockedIpv6.check(address, 'ipv6') &&
-    (globalIpv6.check(address, 'ipv6') || (privateAllowed && localIpv6.check(address, 'ipv6')));
+    (globalIpv6.check(address, 'ipv6') || (privateAllowed && localIpv6.check(address, 'ipv6')))
+  );
 }
 
 function resolveHost(host: string, signal: AbortSignal): Promise<Address[]> {
@@ -81,7 +100,11 @@ function resolveHost(host: string, signal: AbortSignal): Promise<Address[]> {
   });
 }
 
-async function resolveEndpoint(url: URL, privateOrigins: readonly string[], signal: AbortSignal): Promise<Address> {
+async function resolveEndpoint(
+  url: URL,
+  privateOrigins: readonly string[],
+  signal: AbortSignal,
+): Promise<Address> {
   if (signal.aborted) throw new AIProviderError('timeout');
   const privateAllowed = privateOrigins.includes(url.origin);
   if (url.protocol === 'http:' && !privateAllowed) throw new AIProviderError('invalid_endpoint');
@@ -127,42 +150,50 @@ function requestJson(
     const headers = { Accept: 'application/json', ...options.headers };
     if (body !== undefined) Object.assign(headers, { 'Content-Type': 'application/json' });
     const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
-    const outgoing = send(url, {
-      ...options,
-      headers,
-      // One checked address per request. The URL hostname still drives TLS
-      // certificate and SNI verification, and redirects are never followed.
-      agent: false,
-      family: address.family,
-      lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
-    }, (response) => {
-      const status = response.statusCode ?? 0;
-      if (status < 200 || status >= 300) {
-        response.destroy();
-        reject(statusError(status));
-        return;
-      }
-      const chunks: Buffer[] = [];
-      let size = 0;
-      response.on('data', (chunk: Buffer) => {
-        size += chunk.length;
-        if (size > MAX_RESPONSE_BYTES) {
+    const outgoing = send(
+      url,
+      {
+        ...options,
+        headers,
+        // One checked address per request. The URL hostname still drives TLS
+        // certificate and SNI verification, and redirects are never followed.
+        agent: false,
+        family: address.family,
+        lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
+      },
+      (response) => {
+        const status = response.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
           response.destroy();
-          reject(new AIProviderError('invalid_response'));
+          reject(statusError(status));
           return;
         }
-        chunks.push(chunk);
-      });
-      response.on('end', () => {
-        try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown);
-        } catch {
-          reject(new AIProviderError('invalid_response'));
-        }
-      });
-      response.on('error', () => reject(new AIProviderError(options.signal.aborted ? 'timeout' : 'unavailable')));
-    });
-    outgoing.on('error', () => reject(new AIProviderError(options.signal.aborted ? 'timeout' : 'unavailable')));
+        const chunks: Buffer[] = [];
+        let size = 0;
+        response.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > MAX_RESPONSE_BYTES) {
+            response.destroy();
+            reject(new AIProviderError('invalid_response'));
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.on('end', () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown);
+          } catch {
+            reject(new AIProviderError('invalid_response'));
+          }
+        });
+        response.on('error', () =>
+          reject(new AIProviderError(options.signal.aborted ? 'timeout' : 'unavailable')),
+        );
+      },
+    );
+    outgoing.on('error', () =>
+      reject(new AIProviderError(options.signal.aborted ? 'timeout' : 'unavailable')),
+    );
     outgoing.end(body);
   });
 }
