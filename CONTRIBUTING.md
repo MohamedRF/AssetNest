@@ -17,23 +17,16 @@ the expectations for a reviewable change.
 
 Requires Node.js ≥ 22.12, pnpm 10 and Docker (for PostgreSQL/Redis).
 
-```sh
-git clone <your-fork-url> AssetNest
-cd AssetNest
-cp .env.example .env          # replace every REPLACE_*/CHANGE_ME value
-pnpm install
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d
-pnpm db:migrate
-pnpm db:seed                  # optional bootstrap admin
-pnpm dev                      # api :3000 + web :5173
-```
+Clone your fork and follow the [source installation guide](docs/INSTALL.md#option-a--development-source--infra-containers)
+to configure the environment, apply migrations, seed workspace roles, and
+start the API and web app.
 
 ## Before opening a pull request
 
 ```sh
 pnpm lint
 pnpm typecheck
-pnpm test
+pnpm test --concurrency=1
 pnpm build
 pnpm format:check
 pnpm sdk:check                # regenerate with `pnpm sdk:generate` if contracts changed

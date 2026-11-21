@@ -1,161 +1,154 @@
-# AssetNest — Compose stack (development + single-host self-hosting)
+# Run AssetNest with Docker Compose
 
-This directory contains the reference deployment for AssetNest:
+Use the `app` profile to run the complete stack on one machine. It runs
+PostgreSQL, Redis, migrations, the API, the background worker, and a Caddy web
+server. Use the `infra` profile when you want PostgreSQL and Redis in Docker
+and the application running from source.
 
-| File                   | Purpose                                                                             |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `compose.yaml`         | The stack. Two profiles: `infra` (dev) and `app` (full stack).                      |
-| `Dockerfile.api`       | Shared build for the `api` and one-shot `migrate` services.                         |
-| `Dockerfile.web`       | Vite build → Caddy static server + reverse proxy.                                   |
-| `Caddyfile`            | SPA routing, `/api/*` proxy, liveness alias, and TLS notes.                         |
-| `compose.litellm.yaml` | Optional LiteLLM gateway overlay (profile `litellm`); see §4 — never required.      |
-| `litellm-config.yaml`  | Example single-upstream LiteLLM routing config for the overlay (mounted read-only). |
-| `README.md`            | This file.                                                                          |
+Install Git and start Docker before proceeding. Docker Desktop includes
+Compose on Windows and macOS. On Linux, use Docker Desktop or install the
+Compose plugin for Docker Engine. [Docker Compose installation](https://docs.docker.com/compose/install/)
 
-`bootstrap-admin.sh` (repo root → `infrastructure/scripts/`) sanity-checks your
-`.env` before the first start; see "First-time bootstrap" below.
+```sh
+docker compose version
+git clone https://github.com/MohamedRF/AssetNest.git
+cd AssetNest
+```
 
-> **Terminology.** "Development" = run the app from source on your host
-> (`pnpm dev`) against containerized PostgreSQL/Redis. "Self-hosted" = everything
-> runs in Docker; you only visit `http://<host>/`.
+If you already cloned the repository, run the remaining commands from its root.
+The first build needs network access to fetch base images and dependencies.
 
 ## 1. Prepare `.env`
 
-From the **repo root**:
+Copy the [configuration template](../../.env.example) to the repository root
+using the command for your shell.
 
-```sh
-cp .env.example .env
-```
+| Shell                           | Command                       |
+| ------------------------------- | ----------------------------- |
+| Bash, Git Bash, macOS, or Linux | `cp .env.example .env`        |
+| Windows PowerShell              | `Copy-Item .env.example .env` |
 
-Edit `.env` and replace every `REPLACE_*` / `CHANGE_ME` value. Never commit
-`.env` — it is git-ignored and deliberately excluded from Docker build contexts
-by the root `.dockerignore`.
-
-In addition to the variables in `.env.example`, the compose stack interpolates
-and requires these **compose-only** variables (they are intentionally not in
-`.env.example`):
+For a local evaluation, edit the copied file and set the values below. Replace
+all angle-bracket placeholders. Use the same database password in both places.
 
 ```dotenv
+NODE_ENV=development
+PUBLIC_APP_URL=http://127.0.0.1:8080
+WEB_PORT=127.0.0.1:8080
+
 POSTGRES_USER=assetnest
-POSTGRES_PASSWORD=change-me-url-safe-password   # [A-Za-z0-9._-]+ for the reference stack
 POSTGRES_DB=assetnest
-# Optional:
-# POSTGRES_PORT=5432
-# REDIS_PORT=6379
-# WEB_PORT=80
+POSTGRES_PASSWORD=<generated URL-safe database password>
+DATABASE_URL=postgresql://assetnest:<same database password>@localhost:5432/assetnest
+
+SESSION_SECRET=<generated session secret>
+ENCRYPTION_KEY=<generated 32-byte base64 key>
+
+SEED_ADMIN_EMAIL=<email you will sign in with>
+SEED_ADMIN_PASSWORD=<generated login password>
+AI_ENABLED=false
 ```
 
-`SESSION_SECRET` and `ENCRYPTION_KEY` must satisfy `@assetnest/config` or the
-API (and the migrate job) will refuse to boot — fail fast, by design:
+Use separate random values for the database password, session secret, encryption
+key, and login password. In Bash or Git Bash with OpenSSL available:
 
 ```sh
-openssl rand -base64 48    # SESSION_SECRET  (any >= 32 bytes of material)
-openssl rand -base64 32    # ENCRYPTION_KEY  (must base64-decode to exactly 32 bytes)
+openssl rand -hex 24     # POSTGRES_PASSWORD
+openssl rand -base64 48  # SESSION_SECRET
+openssl rand -base64 32  # ENCRYPTION_KEY
+openssl rand -hex 24     # SEED_ADMIN_PASSWORD
 ```
 
-For **real production** also set `NODE_ENV=production` and an
-`https://` `PUBLIC_APP_URL` in `.env` — the config layer rejects production
-mode with a non-TLS URL. The reference compose file deliberately does **not**
-override `NODE_ENV`; it comes from your `.env`.
+In PowerShell, use the built-in cryptographic random generator:
 
-Compose also enforces them at parse time (`${POSTGRES_PASSWORD:?…}`): if they
-are missing, `docker compose` refuses to start and prints which one is absent.
-
-> The `api` and `migrate` services assemble `DATABASE_URL` from `POSTGRES_*`,
-> overriding the `localhost` value from `.env` (inside the compose network the
-> database host is `postgres`). Keep `POSTGRES_PASSWORD` URL-safe, or percent-
-> encode it by editing the `environment:` block — never hard-code a password in
-> `compose.yaml`. Requests go through Caddy; the API is not published directly.
-
-Run all compose commands from the repo root with `--env-file .env` so that both
-variable interpolation and the services' `env_file` resolve the same file:
-
-```sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d
+```powershell
+$random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$dbPassword = New-Object byte[] 24
+$sessionSecret = New-Object byte[] 48
+$encryptionKey = New-Object byte[] 32
+$loginPassword = New-Object byte[] 24
+try {
+    $random.GetBytes($dbPassword)
+    $random.GetBytes($sessionSecret)
+    $random.GetBytes($encryptionKey)
+    $random.GetBytes($loginPassword)
+    "POSTGRES_PASSWORD=$([BitConverter]::ToString($dbPassword).Replace('-', '').ToLowerInvariant())"
+    "SESSION_SECRET=$([Convert]::ToBase64String($sessionSecret))"
+    "ENCRYPTION_KEY=$([Convert]::ToBase64String($encryptionKey))"
+    "SEED_ADMIN_PASSWORD=$([BitConverter]::ToString($loginPassword).Replace('-', '').ToLowerInvariant())"
+} finally {
+    $random.Dispose()
+}
 ```
 
-(`env_file` in `compose.yaml` points at `../../.env` relative to this directory,
-i.e. the repo-root `.env`, so this works regardless of the shell's cwd.)
+Keep the configuration private. The API, worker, and migration job assemble
+their internal database URL using `POSTGRES_*`. The `DATABASE_URL` in the
+template is for commands you run directly on the host. The local example
+binds the web interface to loopback. For a network-facing installation,
+configure [HTTPS](#5-tls--https) and use the public HTTPS origin.
 
 ## 2. Development flow (`infra` profile)
 
-PostgreSQL + Redis only; the apps run on your host:
+Start only PostgreSQL and Redis if you run the application on your host:
 
 ```sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d
-pnpm install        # first time only (needs network)
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra up -d --wait
 ```
 
-Follow the [source installation steps](../../docs/INSTALL.md#option-a--development-source--infra-containers)
-to export the host configuration, build the database package, migrate, and
-seed workspace roles before starting the development servers.
-
-`.env.example` already points `DATABASE_URL` at `localhost:5432` and
-`REDIS_URL` at `localhost:6379`, which matches the published ports (bound to
-`127.0.0.1` only). Stop the infra with:
-
-```sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile infra down
-```
+Then follow the [source installation steps](../../docs/INSTALL.md#option-a--development-source--infra-containers)
+to build packages, migrate, seed roles, and start the development servers.
 
 ## 3. Self-hosted (single host) flow (`app` profile)
 
-The full stack includes PostgreSQL, Redis, the one-shot `migrate` job, API,
-worker, and web service. For local evaluation with the default web port, set
-`PUBLIC_APP_URL=http://localhost`.
+### Build, migrate, and seed
+
+Run these commands from the repository root in Bash or PowerShell.
 
 ```sh
-sh infrastructure/scripts/bootstrap-admin.sh   # pre-flight check of .env
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app config --quiet
 docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app up -d --build
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app run --rm migrate pnpm --filter @assetnest/db seed
 ```
 
-What happens:
+Compose waits for PostgreSQL to be healthy before running migrations. The API
+and worker start after the migration job succeeds. The seed command initializes
+workspace roles. If both seed credentials are set, it also creates or finds
+the specified user and seeds the Home and Office demo workspaces.
 
-1. `postgres` and `redis` start and become healthy.
-2. `migrate` runs `pnpm --filter @assetnest/db migrate` against the compose
-   database and exits. The `api` service will not start until it succeeds
-   (`depends_on: service_completed_successfully`).
-3. `api` starts on port 3000 (internal only), with private files on the
-   `private_files` volume at `/data/private-files`.
-4. The worker processes background jobs. Caddy serves the web app on
-   `${WEB_PORT:-80}` and proxies `/api/*` to the API.
-
-Verify:
+### Verify and sign in
 
 ```sh
-curl -fsS http://localhost/api/v1/health/live
-curl -fsS http://localhost/api/v1/health/ready
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app ps -a
+curl -fsS http://127.0.0.1:8080/api/v1/health/ready
 ```
 
-Initialize the built-in workspace roles after migrations complete:
+On Windows PowerShell, use `curl.exe` instead of `curl` if `curl` is an alias.
+Expect `migrate` to exit with code 0 and readiness to return
+`{"status":"ready","checks":{"database":"up"}}`. Open
+[http://127.0.0.1:8080](http://127.0.0.1:8080), sign in with the email and
+password you set, and select a demo workspace.
+
+### Start without demo workspaces
+
+For a new installation without demo data, remove both seed credential
+settings before starting. Run the same seed command to initialize roles.
+On a database with an empty users table, open the instance's Swagger UI at
+`/api/docs` and run `POST /api/v1/auth/register` once with your chosen
+`displayName`, `email`, and `password`. Then open the web app and create a
+workspace in **Settings → Workspace**. Existing installations use invitations
+from a workspace owner.
+
+### View logs or stop the stack
 
 ```sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app \
-  run --rm migrate pnpm --filter @assetnest/db seed
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app logs --tail 100 migrate api web
+docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app down
 ```
 
-When both seed credentials are set, the command also ensures the specified
-user and demo workspaces exist. For browser sign-up on a fresh installation,
-remove both credential variables before starting the stack and run the same
-seed command to initialize the role catalog.
-
-`infrastructure/scripts/bootstrap-admin.sh` performs these pre-flight checks for
-you (file exists, secrets are not the example placeholders, key formats match
-`@assetnest/config`) without touching the database. Run it before the first
-start: `sh infrastructure/scripts/bootstrap-admin.sh` (or `chmod +x` once and
-run it directly).
-
-Stop / update:
-
-```sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app down     # keep data
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app pull     # update base images
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app up -d --build  # migrate re-runs first
-```
-
-**First build needs network access** (base-image pulls, pnpm install). Build
-times: one `pnpm install --frozen-lockfile` + two `tsc`/`vite` builds inside the
-images; nothing is fetched at container runtime except what your host allows.
+Running `down` in this form keeps the named volumes. The `--volumes` option
+removes the named volumes, including the database and private files. Before
+upgrading, follow the [upgrade and rollback guide](../../docs/UPGRADE.md).
+[Docker Compose down reference](https://docs.docker.com/reference/cli/docker/compose/down/)
 
 ## 4. Optional LiteLLM gateway (AI routing)
 
@@ -234,8 +227,8 @@ this host (single-host production):
 1. Point a domain's A/AAAA record at the host; open ports 80 and 443.
 2. Edit `infrastructure/compose/Caddyfile`: replace `:80` with the hostname,
    e.g. `app.example.com {`.
-3. Publish `443:443` in `compose.yaml` (the `web` service).
-4. `docker compose ... --profile app up -d --build`
+3. Set `WEB_PORT=80` and publish `443:443` in `compose.yaml` for the `web` service.
+4. Set `NODE_ENV=production` and set `PUBLIC_APP_URL` to your HTTPS origin. Rebuild using the full-stack command in [step 3](#3-self-hosted-single-host-flow-app-profile).
 
 Caddy obtains and renews the certificate automatically and stores it in the
 `caddy_data` volume — back up `caddy_data` if you cannot afford re-issuance
@@ -270,11 +263,11 @@ infrastructure/scripts/backup.sh` writes a custom-format dump, a private-file
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POSTGRES_PASSWORD: Set POSTGRES_PASSWORD in .env …` at parse time               | Compose-only vars missing — see §1.                                                                                                                |
 | `migrate` exits non-zero, api never starts                                       | Check `docker compose ... logs migrate`; usually a bad `DATABASE_URL`/password or a failed migration — fix forward, never edit applied migrations. |
-| `api` is `unhealthy`                                                             | `/health/live` not yet implemented, or API crash — check `logs api`.                                                                               |
+| `api` is `unhealthy`                                                             | Check `logs api` for boot errors, including invalid configuration and secrets.                                                                     |
 | Every AI call to `http://litellm:4000` fails with `AI_PROVIDER_INVALID_ENDPOINT` | `AI_PRIVATE_ORIGINS` does not list the gateway origin, or `AI_ENABLED=false` — see §4.                                                             |
-| `web` serves 404/blank                                                           | `apps/web/dist` empty — rebuild the web image (`up --build`).                                                                                      |
+| `web` serves 404 or a blank page                                                 | Check `logs web` and rebuild the web image with `up -d --build`.                                                                                   |
 | Port 5432/6379 already in use                                                    | Override `POSTGRES_PORT` / `REDIS_PORT` in `.env`.                                                                                                 |
-| Port 80 in use                                                                   | Override `WEB_PORT` in `.env` (e.g. `8080`).                                                                                                       |
+| Web port is already in use                                                       | Choose another `WEB_PORT` and update `PUBLIC_APP_URL` to match.                                                                                    |
 
 ## 8. Known limitations (reference stack, not a hardened production manifest)
 

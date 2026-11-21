@@ -46,56 +46,29 @@ Edit the Compose-only PostgreSQL settings as described in the
 [Compose guide](../infrastructure/compose/README.md#1-prepare-env) and keep
 `DATABASE_URL` in sync with the published database port and credentials.
 Quote values with shell metacharacters or set the same variables directly in
-your shell. Remove both seed credential variables if you want to create the
-first account in the browser.
+your shell. Set both seed credential variables for a local evaluation with
+demo workspaces, or remove both to initialize only the built-in roles.
 
-Open <http://localhost:5173>. If you did not seed an admin, the first
-`POST /auth/register` (or the web sign-up form) creates the bootstrap account;
-registration then closes.
+Open <http://localhost:5173> and sign in with your seeded credentials. If you
+skipped demo seeding and the users table is empty, use the bootstrap API
+described under [first administrator](#first-administrator).
 
 ## Option B — Self-hosted full stack (Docker Compose)
 
-The reference stack runs PostgreSQL 17, Redis 7, a one-shot migration job, the
-API, the worker and Caddy (web + `/api` + `/health`).
-
-```sh
-cp .env.example .env
-# For local evaluation, set PUBLIC_APP_URL=http://localhost.
-# For HTTPS deployments, set NODE_ENV=production and the public HTTPS origin.
-# Add the compose-only values:
-#   POSTGRES_USER=assetnest
-#   POSTGRES_PASSWORD=<url-safe-password>
-#   POSTGRES_DB=assetnest
-
-sh infrastructure/scripts/bootstrap-admin.sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app up -d --build
-```
-
-Verify:
-
-```sh
-curl -fsS http://localhost/health/live
-curl -fsS http://localhost/api/v1/health/ready
-```
-
-Then open `http://<host>/`. See `infrastructure/compose/README.md` for TLS,
-backups, the optional LiteLLM overlay and troubleshooting.
+Use the [Docker Compose setup guide](../infrastructure/compose/README.md) to
+configure the stack, build the images, apply migrations, seed workspace roles,
+and check readiness. It includes Bash and PowerShell examples.
 
 ### First administrator
 
-Initialize the workspace role catalog after the migration job succeeds:
+Run the seed command after migrations to initialize workspace roles. With both
+`SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` set, it also ensures the specified
+account and demo workspaces exist. Use this option on a disposable evaluation stack.
 
-```sh
-docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app \
-  run --rm migrate pnpm --filter @assetnest/db seed
-```
-
-Remove both `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` before starting the
-stack if you only want to initialize the role catalog. With both set, the seed
-also ensures the specified user and demo workspaces exist. Use that option on
-a disposable evaluation stack. On an empty users table, you can create the
-first account through the web sign-up form. On an existing installation, ask
-a workspace owner to invite you.
+To start without demo data, leave both variables unset and create the first
+account using `POST /api/v1/auth/register` on an empty database. For a source
+install, open Swagger UI at `http://localhost:3000/api/docs`. For Compose,
+follow [bootstrap without demo data](../infrastructure/compose/README.md#start-without-demo-workspaces).
 
 ## Option C — Managed PostgreSQL / external services
 
