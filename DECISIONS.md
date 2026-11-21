@@ -14,11 +14,12 @@
 - ADR-010: **MCP integration separate optional component.** Scoped API, never direct DB or unrestricted tools.
 - ADR-011: **ESM everywhere, including the NestJS app.** All workspace packages are pure ESM (`type: module`, NodeNext). No dual-package hazard, no `require(esm)` dependency. Date: 2026-11-18. Owner: lead architect.
 - ADR-012: **PGlite for local/test migration runs; real PostgreSQL 17 for CI gates.** WASM Postgres executes the identical migration SQL and transaction semantics; the CI `migrations` job applies the chain against `postgres:17-alpine` twice (idempotency check). No SQLite/mocks for DB semantics anywhere. Date: 2026-11-18. Owner: lead architect.
+- ADR-013: **MIT license.** The project is distributed under the MIT License (permissive, attribution-preserving) to encourage self-hosting and adoption. This is a legal decision and should still be reviewed by counsel before any commercial dual-licensing model is introduced. Date: 2026-11-21. Owner: lead architect.
 
 ## Decisions requiring explicit review before public release
 
 - Repository/project name: AssetNest is placeholder until naming/trademark check.
-- License (AGPLv3, Apache-2.0, MIT etc.) and any commercial model; consult qualified counsel when necessary.
+- License: **MIT selected** (ADR-013). Any commercial/dual-licensing model still requires counsel review; the project name remains a placeholder until a trademark check.
 - Default email service and hosted authentication option; local self-hosting must remain functional.
 - Backup and data retention defaults for documents, AI jobs and audit events.
 - Whether household users can have more than one shared workspace on a deployment.

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "AssetNest — self-hostable, web-only, multi-workspace asset management. Core operation never requires AI or public cloud services.",
+  "license": "MIT",
   "packageManager": "pnpm@10.34.9",
   "engines": {
     "node": ">=22.0.0"

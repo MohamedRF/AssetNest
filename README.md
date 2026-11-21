@@ -1,6 +1,6 @@
-# AssetNest — Development Blueprint
+# AssetNest
 
-**Status:** Implementation specification v1.0 · **Target:** Web-only, self-hostable, multi-workspace asset management · **Date:** 2026-11-18
+**Status:** v0.1.0 · **Target:** Web-only, self-hostable, multi-workspace asset management · **Date:** 2026-11-21
 
 ## Product
 
@@ -48,6 +48,18 @@ pnpm dev                      # api (3000) + web (5173) with hot reload
 ```
 
 Self-hosted full stack: `docker compose --env-file .env -f infrastructure/compose/compose.yaml --profile app up -d --build` (serves via Caddy on port 80). See `infrastructure/compose/README.md` for TLS, backups and troubleshooting. Core operation never requires AI — `AI_ENABLED=false` is the safe default.
+
+## Contributing and security
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development workflow, conventions and PR expectations.
+- [SECURITY.md](SECURITY.md) — private vulnerability reporting and supported versions.
+- [CHANGELOG.md](CHANGELOG.md) — release history (Keep a Changelog + SemVer).
+- [docs/INSTALL.md](docs/INSTALL.md) — install paths (dev, Compose, managed).
+- [docs/UPGRADE.md](docs/UPGRADE.md) — backup-first upgrade and rollback.
+- [docs/RELEASE.md](docs/RELEASE.md) — versioning, images, SBOMs and keyless signing.
+- [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md) — go-live checklist.
+
+**License:** [MIT](LICENSE).
 
 ## Repository layout
 
