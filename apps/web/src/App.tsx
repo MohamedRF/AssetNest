@@ -2,7 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import { AppLayout } from './components/layout/AppLayout';
 import { AcceptInvite } from './pages/AcceptInvite';
 import { Approvals } from './pages/Approvals';
-import { AssetDetailPage } from './pages/AssetDetail';
+import { AssetDetailPage, AssetQrLink } from './pages/AssetDetail';
 import { AuditDetailPage } from './pages/AuditDetail';
 import { Audits } from './pages/Audits';
 import { Imports } from './pages/Imports';
@@ -30,6 +30,8 @@ export function App() {
         <Route path="assets" element={<AssetsList />} />
         <Route path="assets/new" element={<AssetForm />} />
         <Route path="assets/:assetId" element={<AssetDetailPage />} />
+        <Route path="assets/:assetId/edit" element={<AssetForm />} />
+        <Route path="asset-qr/:workspaceId/:assetId" element={<AssetQrLink />} />
         <Route path="locations" element={<Locations />} />
         <Route path="custody" element={<Custody />} />
         <Route path="maintenance" element={<Maintenance />} />

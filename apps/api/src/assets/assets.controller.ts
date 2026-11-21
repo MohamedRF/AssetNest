@@ -4,10 +4,12 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { z } from 'zod';
 import { ApiProblemResponse, openApiSchema } from '../common/openapi.js';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe.js';
 import { CurrentUser } from '../auth/current-user.decorator.js';
@@ -131,18 +133,16 @@ export class AssetsController {
 
   @Get(':assetId/qr')
   @ApiOperation({ operationId: 'getAssetQr' })
+  @ApiQuery({ name: 'format', required: false, enum: ['link'] })
   @ApiOkResponse({ content: { 'image/svg+xml': { schema: { type: 'string' } } } })
   @RequirePermissions('assets:read')
   async qr(
     @CurrentWorkspace() ctx: WorkspaceContext,
     @Param('assetId') assetId: string,
+    @Query('format', new ZodValidationPipe(z.literal('link').optional())) format: 'link' | undefined,
     @Res() res: Response,
   ) {
-    const svg = await this.qrService.svgFor(ctx, assetId);
-    res
-      .type('image/svg+xml')
-      // QR of an opaque UUID — safe to cache briefly, never longer than a minute.
-      .set('Cache-Control', 'private, max-age=60')
-      .send(svg);
+    const svg = await this.qrService.svgFor(ctx, assetId, format);
+    res.type('image/svg+xml').set('Cache-Control', 'private, max-age=60').send(svg);
   }
 }

@@ -8,6 +8,8 @@
  * - Secrets are never logged.
  */
 
+import { loginPathFor } from './asset-qr';
+
 export interface ApiErrorInit {
   status: number;
   code: string;
@@ -47,7 +49,7 @@ export type UnauthorizedHandler = () => void;
 
 const defaultUnauthorizedHandler: UnauthorizedHandler = () => {
   if (typeof window !== 'undefined' && shouldRedirectToLogin(window.location.pathname)) {
-    window.location.assign('/login');
+    window.location.assign(loginPathFor(window.location.pathname, window.location.origin));
   }
 };
 

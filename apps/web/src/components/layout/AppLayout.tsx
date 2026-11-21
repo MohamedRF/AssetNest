@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Outlet, useLocation, Navigate } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../lib/auth';
+import { loginPathFor } from '../../lib/asset-qr';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 
@@ -18,6 +19,7 @@ function getStoredCollapsed(): boolean {
 /** Gates every protected route: splash while probing, redirect to /login when signed out. */
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
+  const { pathname } = useLocation();
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
@@ -26,7 +28,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
     );
   }
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPathFor(pathname, window.location.origin)} replace />;
   }
   return <>{children}</>;
 }

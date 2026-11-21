@@ -1,25 +1,64 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Archive, CalendarDays, CircleDollarSign, Hash, QrCode, Tag, Wrench } from 'lucide-react';
+import {
+  ArrowLeft,
+  Archive,
+  CalendarDays,
+  CircleDollarSign,
+  Copy,
+  Hash,
+  Pencil,
+  Printer,
+  QrCode,
+  Tag,
+  Wrench,
+} from 'lucide-react';
 import type { AssetHistory } from '@assetnest/sdk';
 import { AssetLifecycleActions } from '../components/AssetLifecycleActions';
 import { AssetStatusBadge } from '../components/AssetStatusBadge';
+import { AssetLabelsDialog } from '../components/AssetLabelsDialog';
 import { PageHeader } from '../components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Button } from '../components/ui/button';
+import { Button, buttonVariants } from '../components/ui/button';
 import { DocumentsCard } from '../components/DocumentsCard';
 import { CustodyActions } from '../components/CustodyActions';
 import { AiChatCard } from '../components/AiChatCard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/ui/toast';
-import { getApiBaseUrl, isApiError } from '../lib/api';
+import { isApiError } from '../lib/api';
+import { assetQrUrl } from '../lib/asset-labels';
 import { assetsApi } from '../lib/assets-api';
+import { formatPurchaseAmount } from '../lib/purchase-currency';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
 type HistoryEvent = AssetHistory['events'][number];
+
+export function AssetQrLink() {
+  const { workspaceId, assetId } = useParams();
+  const { workspace, workspaces, selectWorkspace } = useSelectedWorkspace();
+  const validAssetId =
+    typeof assetId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(assetId);
+  const targetWorkspace = validAssetId ? workspaces.find((item) => item.id === workspaceId) : undefined;
+  useEffect(() => {
+    if (targetWorkspace && workspace?.id !== targetWorkspace.id) selectWorkspace(targetWorkspace.id);
+  }, [targetWorkspace, workspace?.id, selectWorkspace]);
+  if (!targetWorkspace) {
+    return (
+      <EmptyState
+        icon={QrCode}
+        title="Asset link unavailable"
+        description="Check that the label belongs to one of your workspaces."
+        actionLabel="Back to assets"
+        actionHref="/assets"
+      />
+    );
+  }
+  if (workspace?.id === targetWorkspace.id) return <Navigate to={`/assets/${assetId}`} replace />;
+  return <p role="status">Opening asset…</p>;
+}
 
 export function AssetDetailPage() {
   const { assetId } = useParams<{ assetId: string }>();
@@ -28,11 +67,11 @@ export function AssetDetailPage() {
   const { workspace } = useSelectedWorkspace();
   const workspaceId = workspace?.id;
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [labelAsset, setLabelAsset] = useState<{ workspaceId: string; assetId: string }>();
 
   const canManage =
     workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
-  const canUseAi =
-    workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
+  const canUseAi = canManage;
 
   const assetQuery = useQuery({
     queryKey: ['asset', workspaceId, assetId],
@@ -75,7 +114,20 @@ export function AssetDetailPage() {
 
   const asset = assetQuery.data;
   const isMissing = isApiError(assetQuery.error) && assetQuery.error.status === 404;
-  const qrUrl = asset ? `${getApiBaseUrl()}/workspaces/${workspaceId}/assets/${asset.id}/qr` : undefined;
+  const qrUrl = asset && workspaceId ? assetQrUrl(workspaceId, asset.id) : undefined;
+
+  async function copyAssetCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      toast({ title: 'Asset code copied', variant: 'success' });
+    } catch {
+      toast({
+        title: 'Could not copy the code',
+        description: 'Select and copy the code shown below the QR label.',
+        variant: 'warning',
+      });
+    }
+  }
 
   const label = (event: HistoryEvent): string => {
     switch (event.action) {
@@ -131,6 +183,12 @@ export function AssetDetailPage() {
             actions={
               canManage && asset.status !== 'archived' ? (
                 <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    to={`/assets/${asset.id}/edit`}
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                  >
+                    <Pencil aria-hidden="true" className="h-4 w-4" /> Edit asset
+                  </Link>
                   {workspaceId && (
                     <CustodyActions
                       workspaceId={workspaceId}
@@ -179,7 +237,9 @@ export function AssetDetailPage() {
                     <div>
                       <dt className="text-xs font-medium uppercase text-muted-foreground">Purchased</dt>
                       <dd className="mt-0.5 text-sm">
-                        {asset.purchasedAt ? new Date(asset.purchasedAt).toLocaleDateString() : '—'}
+                        {asset.purchasedAt
+                          ? new Date(asset.purchasedAt).toLocaleDateString(undefined, { timeZone: 'UTC' })
+                          : '—'}
                       </dd>
                     </div>
                   </div>
@@ -187,9 +247,7 @@ export function AssetDetailPage() {
                     <CircleDollarSign aria-hidden="true" className="mt-0.5 h-4 w-4 text-muted-foreground" />
                     <div>
                       <dt className="text-xs font-medium uppercase text-muted-foreground">Purchase price</dt>
-                      <dd className="mt-0.5 text-sm">
-                        {asset.amount ? `${asset.currency ?? ''} ${asset.amount}` : '—'}
-                      </dd>
+                      <dd className="mt-0.5 text-sm">{formatPurchaseAmount(asset.amount, asset.currency)}</dd>
                     </div>
                   </div>
                 </dl>
@@ -235,13 +293,33 @@ export function AssetDetailPage() {
                     className="rounded-lg border border-border bg-white p-2"
                   />
                 )}
-                <p className="text-center text-xs leading-5 text-muted-foreground">
-                  Use a QR scanner, or paste <span className="font-mono">{asset.id}</span> into the asset
-                  finder.
-                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {workspaceId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLabelAsset({ workspaceId, assetId: asset.id })}
+                    >
+                      <Printer aria-hidden="true" className="h-4 w-4" /> QR label
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => void copyAssetCode(asset.id)}>
+                    <Copy aria-hidden="true" className="h-4 w-4" /> Copy code
+                  </Button>
+                </div>
+                <p className="break-all text-center font-mono text-xs text-muted-foreground">{asset.id}</p>
               </CardContent>
             </Card>
           </div>
+
+          {workspaceId && labelAsset?.workspaceId === workspaceId && labelAsset.assetId === asset.id && (
+            <AssetLabelsDialog
+              workspaceId={workspaceId}
+              assets={[{ id: asset.id, assetTag: asset.assetTag, displayName: asset.displayName }]}
+              canExport={canManage || workspace?.role === 'auditor'}
+              onClose={() => setLabelAsset(undefined)}
+            />
+          )}
 
           {workspaceId && canManage && (
             <AssetLifecycleActions

@@ -1,6 +1,6 @@
 import type { OperationResult } from '@assetnest/sdk';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { CircleAlert, Loader2, ServerOff } from 'lucide-react';
 import { z } from 'zod';
 import { LogoMark } from '../components/layout/Sidebar';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { api, getApiBaseUrl, isApiError } from '../lib/api';
+import { parseAssetQr } from '../lib/asset-qr';
 import { useAuth } from '../lib/auth';
 
 const loginSchema = z.object({
@@ -25,6 +26,12 @@ type FieldErrors = Partial<Record<LoginField, string>>;
 
 export function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const qrTarget = parseAssetQr(
+    `${window.location.origin}${searchParams.get('qr') ?? ''}`,
+    window.location.origin,
+  );
+  const destination = qrTarget?.workspaceId ? `/asset-qr/${qrTarget.workspaceId}/${qrTarget.assetId}` : '/';
   const { user, isLoading, login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,15 +54,8 @@ export function Login() {
     };
   }, []);
 
-  // Already signed in → go straight to the app.
-  useEffect(() => {
-    if (!isLoading && user) {
-      navigate('/', { replace: true });
-    }
-  }, [isLoading, user, navigate]);
-
   if (!isLoading && user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={destination} replace />;
   }
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -80,7 +80,7 @@ export function Login() {
 
     try {
       await login(parsed.data.email, parsed.data.password);
-      navigate('/', { replace: true });
+      navigate(destination, { replace: true });
     } catch (error) {
       if (isApiError(error) && error.status === 401) {
         setFormError('Invalid email or password.');

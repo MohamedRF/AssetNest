@@ -848,6 +848,25 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workspaces/{workspaceId}/assets/qr-label-export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Returns private label export metadata. Requires assets:read, reports:read, and an enabled workspace export policy. */
+    post: operations['getAssetLabelExport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/workspaces/{workspaceId}/audit-log': {
     parameters: {
       query?: never;
@@ -5091,7 +5110,9 @@ export interface operations {
   };
   getAssetQr: {
     parameters: {
-      query?: never;
+      query?: {
+        format?: 'link';
+      };
       header?: never;
       path: {
         assetId: string;
@@ -5382,6 +5403,92 @@ export interface operations {
             version: number;
             /** Format: uuid */
             workspaceId: string;
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  getAssetLabelExport: {
+    parameters: {
+      query?: never;
+      header?: {
+        /** @description Required when authenticating with the session cookie */
+        'x-csrf-token'?: string;
+      };
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          assetIds: string[];
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          'Cache-Control'?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            items: {
+              amount: string | null;
+              assetTag: string;
+              categoryName: string | null;
+              /** @enum {string} */
+              condition: 'new' | 'good' | 'fair' | 'poor' | 'damaged' | 'unknown';
+              /** Format: date-time */
+              createdAt: string;
+              currency: string | null;
+              customValues: {
+                [key: string]: unknown;
+              };
+              displayName: string;
+              /** Format: uuid */
+              id: string;
+              locationName: string | null;
+              maker: string | null;
+              modelName: string | null;
+              notes: string | null;
+              /** Format: date */
+              purchasedAt: string | null;
+              serialNumber: string | null;
+              /** @enum {string} */
+              status:
+                | 'available'
+                | 'assigned'
+                | 'checked_out'
+                | 'in_repair'
+                | 'lost'
+                | 'retired'
+                | 'disposed'
+                | 'archived';
+              tags: string[];
+              /** Format: date-time */
+              updatedAt: string;
+            }[];
           };
         };
       };

@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, PackagePlus, QrCode, Search, Sparkles, Upload } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  PackagePlus,
+  Printer,
+  QrCode,
+  Search,
+  Sparkles,
+  Upload,
+} from 'lucide-react';
 import type { AssetListQuery, AssetPage, OperationResult } from '@assetnest/sdk';
 import { ASSET_STATUSES, AssetStatusBadge } from '../components/AssetStatusBadge';
+import { AssetLabelsDialog } from '../components/AssetLabelsDialog';
+import { AssetQrScanner } from '../components/AssetQrScanner';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { EmptyState } from '../components/EmptyState';
 import { PageHeader } from '../components/PageHeader';
@@ -11,6 +22,8 @@ import { Button, buttonVariants } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/input';
 import { api, isApiError } from '../lib/api';
+import { MAX_LABELS_PER_BATCH, type LabelAsset } from '../lib/asset-labels';
+import { parseAssetQr, type AssetQrTarget } from '../lib/asset-qr';
 import { assetsApi } from '../lib/assets-api';
 import { cn } from '../lib/utils';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
@@ -21,6 +34,7 @@ type FilterDraftResponse = OperationResult<'draftAiInventoryQuery'>;
 type RoutePreview = OperationResult<'previewAiTaskRoute'>;
 
 const PAGE_SIZE = 20;
+const NO_SELECTION: ReadonlyMap<string, LabelAsset> = new Map();
 
 /** Apply an AI-proposed filter AST to the URL-driven list state. */
 function filtersToParams(filters: FilterDraft['filters']): URLSearchParams {
@@ -57,6 +71,11 @@ export function AssetsList() {
   const [status, setStatus] = useState(searchParams.get('status') ?? '');
   const [condition, setCondition] = useState(searchParams.get('condition') ?? '');
   const [lookup, setLookup] = useState('');
+  const [selection, setSelection] = useState<{
+    workspaceId: string;
+    assets: ReadonlyMap<string, LabelAsset>;
+  }>();
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const [aiQuestion, setAiQuestion] = useState('');
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -68,6 +87,8 @@ export function AssetsList() {
   const canUseAi =
     workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
   const canManageAssets = ['owner', 'admin', 'manager'].includes(workspace?.role ?? '');
+  const canExportLabels = canManageAssets || workspace?.role === 'auditor';
+  const selected = selection && selection.workspaceId === workspaceId ? selection.assets : NO_SELECTION;
   const hasFilters = Boolean(q || status || condition);
 
   const preview = useQuery({
@@ -137,6 +158,8 @@ export function AssetsList() {
   // Discard any pending AI state when the workspace changes.
   useEffect(() => {
     activeWorkspace.current = workspaceId;
+    setSelection(undefined);
+    setLabelsOpen(false);
     setAiBusy(false);
     setAiQuestion('');
     setAiError(null);
@@ -144,15 +167,16 @@ export function AssetsList() {
     setAiConsentRoute(null);
   }, [workspaceId]);
 
+  const openScannedAsset = ({ assetId, workspaceId: targetWorkspace }: AssetQrTarget) => {
+    navigate(targetWorkspace ? `/asset-qr/${targetWorkspace}/${assetId}` : `/assets/${assetId}`);
+  };
+
   const submitLookup = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const raw = lookup.trim();
-    // Accept a full assetnest:// URI, a bare UUID, or an asset tag handled by search.
-    const uriMatch = raw.match(/^assetnest:\/\/asset\/([0-9a-f-]{36})$/i);
-    const uuidMatch = raw.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-    const target = uriMatch?.[1] ?? uuidMatch?.[0];
+    const target = parseAssetQr(raw, window.location.origin);
     if (target) {
-      navigate(`/assets/${target}`);
+      openScannedAsset(target);
       return;
     }
     setQ(raw);
@@ -168,7 +192,37 @@ export function AssetsList() {
     setSearchParams(next);
   };
 
+  const rows = query.data?.items ?? [];
+  const visibleSelected = rows.length > 0 && rows.every((row) => selected.has(row.id));
+  const visibleUnselected = rows.filter((row) => !selected.has(row.id)).length;
+
+  function setLabelSelection(assets: readonly LabelAsset[], checked: boolean) {
+    if (!workspaceId) return;
+    setSelection((current) => {
+      const next = new Map(current?.workspaceId === workspaceId ? current.assets : undefined);
+      for (const { id, assetTag, displayName } of assets) {
+        if (!checked) next.delete(id);
+        else if (next.size < MAX_LABELS_PER_BATCH) next.set(id, { id, assetTag, displayName });
+      }
+      return { workspaceId, assets: next };
+    });
+  }
+
   const columns: ReadonlyArray<DataTableColumn<AssetRow>> = [
+    {
+      key: 'select-label',
+      header: 'Select',
+      render: (row) => (
+        <input
+          type="checkbox"
+          aria-label={`Select ${row.assetTag} for QR labels`}
+          checked={selected.has(row.id)}
+          disabled={!selected.has(row.id) && selected.size >= MAX_LABELS_PER_BATCH}
+          onChange={(event) => setLabelSelection([row], event.target.checked)}
+          className="h-4 w-4 accent-accent"
+        />
+      ),
+    },
     {
       key: 'assetTag',
       header: 'Tag',
@@ -222,7 +276,6 @@ export function AssetsList() {
     );
   }
 
-  const rows = query.data?.items ?? [];
   const showEmpty = !query.isLoading && !query.isError && rows.length === 0;
 
   return (
@@ -295,24 +348,32 @@ export function AssetsList() {
         </form>
 
         {/* QR / manual code lookup */}
-        <form role="search" onSubmit={submitLookup} className="flex items-center gap-2">
-          <div className="relative">
-            <QrCode
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              value={lookup}
-              onChange={(event) => setLookup(event.target.value)}
-              placeholder="Paste asset code…"
-              aria-label="Find asset by QR code or asset ID"
-              className="h-10 w-56 pl-9 font-mono text-xs"
-            />
-          </div>
-          <Button type="submit" variant="ghost" size="sm">
-            Find
-          </Button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <form
+            role="search"
+            aria-label="Asset code lookup"
+            onSubmit={submitLookup}
+            className="flex min-w-0 grow items-center gap-2"
+          >
+            <div className="relative min-w-0 grow">
+              <QrCode
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                value={lookup}
+                onChange={(event) => setLookup(event.target.value)}
+                placeholder="Paste asset code…"
+                aria-label="Find asset by QR code or asset ID"
+                className="h-10 min-w-0 pl-9 font-mono text-xs"
+              />
+            </div>
+            <Button type="submit" variant="ghost" size="sm">
+              Find
+            </Button>
+          </form>
+          <AssetQrScanner key={workspaceId} onScan={openScannedAsset} />
+        </div>
       </div>
 
       {canUseAi && aiAvailable && (
@@ -377,6 +438,49 @@ export function AssetsList() {
             <span>I understand my request will be shared with the provider above.</span>
           </label>
         </form>
+      )}
+
+      {(rows.length > 0 || selected.size > 0) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={
+              rows.length === 0 ||
+              (!visibleSelected && selected.size + visibleUnselected > MAX_LABELS_PER_BATCH)
+            }
+            onClick={() => setLabelSelection(rows, !visibleSelected)}
+          >
+            {visibleSelected ? 'Deselect this page' : 'Select this page'}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={selected.size === 0}
+            onClick={() => setLabelsOpen(true)}
+          >
+            <Printer aria-hidden="true" className="h-4 w-4" /> QR labels
+          </Button>
+          {selected.size > 0 && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelection(undefined)}>
+              Clear selection
+            </Button>
+          )}
+          <span role="status" className="text-xs text-muted-foreground">
+            {selected.size} selected{selected.size >= MAX_LABELS_PER_BATCH ? ' (batch limit)' : ''}
+          </span>
+        </div>
+      )}
+      {labelsOpen && selected.size > 0 && (
+        <AssetLabelsDialog
+          key={workspaceId}
+          workspaceId={workspaceId}
+          assets={[...selected.values()]}
+          canExport={canExportLabels}
+          onClose={() => setLabelsOpen(false)}
+        />
       )}
 
       {/* Table */}

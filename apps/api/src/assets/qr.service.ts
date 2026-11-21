@@ -3,22 +3,25 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { toString as qrToString } from 'qrcode';
 import { assets } from '@assetnest/db';
 import type { Database } from '@assetnest/db';
-import { DATABASE } from '../common/tokens.js';
+import type { AppConfig } from '@assetnest/config';
+import { APP_CONFIG, DATABASE } from '../common/tokens.js';
 import { httpCode } from '../common/problem.js';
 import type { WorkspaceContext } from '../auth/workspace.guard.js';
 
 /**
- * Opaque asset QR payload. Contains ONLY the asset's UUID — no serials,
- * invoice data or personal information. Resolution happens in-app after an
- * authorization check, never in an unauthenticated public context.
+ * Legacy opaque payload. Link labels point to the configured web origin.
+ * Both resolve through the authenticated asset view.
  */
 export const QR_PAYLOAD_PREFIX = 'assetnest://asset/';
 
 @Injectable()
 export class QrService {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
+  ) {}
 
-  async svgFor(ctx: WorkspaceContext, assetId: string): Promise<string> {
+  async svgFor(ctx: WorkspaceContext, assetId: string, format?: 'link'): Promise<string> {
     const [asset] = await this.db
       .select({ id: assets.id })
       .from(assets)
@@ -27,10 +30,13 @@ export class QrService {
     if (!asset) {
       throw httpCode(HttpStatus.NOT_FOUND, 'Asset not found', 'ASSET_NOT_FOUND');
     }
-    const payload = `${QR_PAYLOAD_PREFIX}${asset.id}`;
+    const payload =
+      format === 'link'
+        ? new URL(`/asset-qr/${ctx.workspaceId}/${asset.id}`, this.config.PUBLIC_APP_URL).href
+        : `${QR_PAYLOAD_PREFIX}${asset.id}`;
     return qrToString(payload, {
       type: 'svg',
-      margin: 1,
+      margin: 4,
       width: 220,
       errorCorrectionLevel: 'M',
     });

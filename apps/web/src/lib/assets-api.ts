@@ -6,6 +6,7 @@ import type {
   CreateAssetRequest,
   OperationOptions,
   OperationResult,
+  UpdateAssetRequest,
 } from '@assetnest/sdk';
 import { api } from './api';
 
@@ -32,6 +33,8 @@ export const assetsApi = {
     api.get<AssetHistory>(`${assetPath(workspaceId, assetId)}/history`),
   create: (workspaceId: string, body: CreateAssetRequest) =>
     api.post<AssetDetail>(collectionPath(workspaceId), body),
+  update: (workspaceId: string, assetId: string, body: UpdateAssetRequest) =>
+    api.patch<AssetDetail>(assetPath(workspaceId, assetId), body),
   transition: (
     workspaceId: string,
     assetId: string,

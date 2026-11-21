@@ -140,3 +140,40 @@
     }
   }
 }
+
+.asset-label-print {
+  display: none;
+}
+
+@media print {
+  @page asset-labels {
+    margin: 10mm;
+  }
+
+  body:has(> .asset-label-print) {
+    background: white;
+    color: black;
+    color-scheme: light;
+  }
+
+  body:has(> .asset-label-print) > :not(.asset-label-print) {
+    display: none !important;
+  }
+
+  .asset-label-print {
+    display: block;
+    page: asset-labels;
+    font:
+      9pt system-ui,
+      sans-serif;
+  }
+
+  .asset-label {
+    display: inline-block;
+    break-inside: avoid;
+    vertical-align: top;
+    margin: 0 3mm 3mm 0;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+}

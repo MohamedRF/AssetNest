@@ -42,7 +42,8 @@ Enforcement is server-side in the asset lifecycle service: disposing/retiring an
 - `GET/PATCH /workspaces/:workspaceId/assets/:assetId`
 - `POST /workspaces/:workspaceId/assets/:assetId/archive`
 - `GET /workspaces/:workspaceId/assets/:assetId/history`
-- `GET /workspaces/:workspaceId/assets/:assetId/qr` (signed/authorized QR action)
+- `GET /workspaces/:workspaceId/assets/:assetId/qr` returns an authorized SVG. Use `?format=link` to encode a link to the configured web origin. The default returns the legacy opaque asset code.
+- `POST /workspaces/:workspaceId/assets/qr-label-export` accepts up to 100 distinct `assetIds` and returns matching asset details for label downloads. Requires asset and report read permissions and enabled workspace exports.
 - `GET/POST/PATCH /workspaces/:workspaceId/categories`
 - `GET/POST/PATCH /workspaces/:workspaceId/locations`
 - `GET/POST/PATCH /workspaces/:workspaceId/vendors`

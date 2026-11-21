@@ -35,6 +35,14 @@ function isNotFound(): never {
   throw httpCode(HttpStatus.NOT_FOUND, 'Asset not found', 'ASSET_NOT_FOUND');
 }
 
+function assetTagExists(assetTag: string) {
+  return httpCode(
+    HttpStatus.CONFLICT,
+    `Asset tag '${assetTag}' already exists in this workspace`,
+    'ASSET_TAG_EXISTS',
+  );
+}
+
 @Injectable()
 export class AssetsService {
   constructor(
@@ -231,11 +239,7 @@ export class AssetsService {
       return this.get(ctx, created.id);
     } catch (error) {
       if (isUniqueViolation(error)) {
-        throw httpCode(
-          HttpStatus.CONFLICT,
-          `Asset tag '${fields.assetTag}' already exists in this workspace`,
-          'ASSET_TAG_EXISTS',
-        );
+        throw assetTagExists(fields.assetTag);
       }
       throw error;
     }
@@ -278,7 +282,13 @@ export class AssetsService {
             isNull(assets.deletedAt),
           ),
         )
-        .returning();
+        .returning()
+        .catch((error: unknown) => {
+          if (fields.assetTag !== undefined && isUniqueViolation(error)) {
+            throw assetTagExists(fields.assetTag);
+          }
+          throw error;
+        });
       if (!updated) {
         return null;
       }
