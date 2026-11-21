@@ -1,5 +1,8 @@
-*.md
-!packages/sdk/README.md
+# Local / private scratch notes stay out of Git; project specs, install guides
+# and verification evidence are tracked (no blanket *.md ignore).
+*.local.md
+*.private.md
+
 node_modules/
 dist/
 coverage/

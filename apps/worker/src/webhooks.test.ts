@@ -228,4 +228,28 @@ describe('signed outbound webhooks (real HTTP receiver)', () => {
     expect(received).toHaveLength(1);
     expect(String(received[0]!.headers['x-assetnest-event'])).toBe('webhook.test');
   });
+
+  it("refuses a targeted delivery aimed at another workspace's subscription", async () => {
+    // Subscription belongs to workspace B; the event belongs to workspace A.
+    const workspaceA = await freshWorkspace();
+    const workspaceB = await freshWorkspace();
+    const url = `http://127.0.0.1:${receiverPort}/hook`;
+    const foreignSubscriptionId = await insertSubscription(workspaceB, url, ['asset.created']);
+
+    const event: OutboxEventLike = {
+      id: crypto.randomUUID(),
+      workspaceId: workspaceA,
+      kind: 'asset.created',
+      aggregateId: crypto.randomUUID(),
+      payloadJson: {
+        occurredAt: '2026-11-19T10:00:00.000Z',
+        // A crafted target id pointing at another tenant's endpoint.
+        targetSubscriptionId: foreignSubscriptionId,
+      },
+    };
+
+    const summary = await deliverWebhooks(db, event, testConfig);
+    expect(summary).toEqual({ delivered: 0, skipped: 0, failed: 0 });
+    expect(received).toHaveLength(0); // never touched workspace B's endpoint
+  });
 });

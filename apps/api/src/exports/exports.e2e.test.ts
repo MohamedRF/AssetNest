@@ -144,6 +144,39 @@ describe('exports (e2e)', () => {
     expect((res.body.exports as unknown[]).length).toBeGreaterThanOrEqual(2);
   });
 
+  it('neutralizes spreadsheet formula prefixes in text but preserves numeric cells', async () => {
+    for (const [tag, name] of [
+      ['EXP-0003', '=1+1'],
+      ['EXP-0004', '@SUM(A1)'],
+    ] as const) {
+      await http()
+        .post(`/api/v1/workspaces/${workspaceId}/assets`)
+        .set('Cookie', owner.cookie)
+        .set('x-csrf-token', owner.csrfToken)
+        .send({ assetTag: tag, displayName: name, currency: 'INR', amount: '1000.00' });
+    }
+
+    const create = await http()
+      .post(`/api/v1/workspaces/${workspaceId}/exports`)
+      .set('Cookie', owner.cookie)
+      .set('x-csrf-token', owner.csrfToken)
+      .send({ report: 'assets' });
+    expect(create.status).toBe(201);
+
+    const download = await http()
+      .get(`/api/v1/workspaces/${workspaceId}/exports/${create.body.id}/download`)
+      .set('Cookie', owner.cookie);
+    expect(download.status).toBe(200);
+    const csv = download.text;
+
+    // Formula-looking text is prefixed with a single quote so spreadsheets treat it literally.
+    expect(csv).toContain("'=1+1");
+    expect(csv).toContain("'@SUM(A1)");
+    // Numeric amount stays a bare number (no quote prefix), i.e. still a typed number.
+    expect(csv).toContain('1000.00');
+    expect(csv).not.toContain("'1000.00");
+  });
+
   it('rejects a plain member (reports:read required)', async () => {
     const invite = await http()
       .post(`/api/v1/workspaces/${workspaceId}/invites`)

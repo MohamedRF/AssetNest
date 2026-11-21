@@ -10,6 +10,6 @@ export default defineConfig({
     // fork fan-out crashed a worker on this Windows dev box (exit
     // 0xC0000409 at startup). Cap concurrency — still fast enough.
     pool: 'forks',
-    maxWorkers: 3,
+    maxWorkers: 2,
   },
 });

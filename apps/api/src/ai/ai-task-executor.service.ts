@@ -42,6 +42,8 @@ interface RunInput extends TaskInput {
   context: WorkspaceContext;
   actorId: string;
   consent: boolean;
+  /** When present, must match the route the caller reviewed and consented to. */
+  routeKey?: string;
 }
 
 const transientErrors = new Set<ProviderErrorCode>(['unavailable', 'timeout', 'rate_limited']);
@@ -87,6 +89,19 @@ export class AiTaskExecutor {
       .limit(1);
     if (!route)
       throw httpCode(HttpStatus.CONFLICT, 'Configure a provider route for this task', 'AI_ROUTE_MISSING');
+    // Consent is bound to the exact route the user reviewed. If the route
+    // (primary or fallback model) changed between preview and send, the earlier
+    // confirmation no longer applies — require an explicit re-confirmation.
+    if (input.routeKey !== undefined) {
+      const currentRouteKey = `${route.modelId}|${route.fallbackModelId ?? ''}`;
+      if (input.routeKey !== currentRouteKey) {
+        throw httpCode(
+          HttpStatus.CONFLICT,
+          'The AI route changed since you reviewed it. Review the provider and confirm again.',
+          'AI_ROUTE_CHANGED',
+        );
+      }
+    }
     if (!route.allowProviderData) {
       throw httpCode(
         HttpStatus.FORBIDDEN,
@@ -155,7 +170,7 @@ export class AiTaskExecutor {
           `AI_PROVIDER_${code.toUpperCase()}`,
         );
       }
-      await this.finish(workspaceId, jobId, Date.now() - started, usage, {
+      await this.persistDraftSafely(workspaceId, jobId, Date.now() - started, usage, {
         draft: input.sourceDocumentId ? draft : null,
       });
       return { jobId, draft };
@@ -263,6 +278,50 @@ export class AiTaskExecutor {
       });
       return job.id;
     });
+  }
+
+  /**
+   * Persist a successful draft to the job record. Drizzle errors embed the
+   * failing SQL and its bound parameters — which, for invoice/photo drafts,
+   * include the private model output. If the write fails we must never let
+   * that raw error reach the exception filter (and thus the request log or a
+   * 500 body). Record a bare, draft-free failure and surface a sanitized error.
+   */
+  private async persistDraftSafely(
+    workspaceId: string,
+    jobId: string,
+    durationMs: number,
+    usage: TokenUsage | null,
+    outcome: { draft: unknown },
+  ): Promise<void> {
+    try {
+      await this.finish(workspaceId, jobId, durationMs, usage, outcome);
+    } catch {
+      // Best-effort: mark the job failed WITHOUT any draft content, then stop.
+      try {
+        await this.db
+          .update(aiJobs)
+          .set({
+            status: 'failed',
+            errorCode: 'persist_failed',
+            output: null,
+            durationMs,
+            inputTokens: usage?.inputTokens ?? null,
+            outputTokens: usage?.outputTokens ?? null,
+            finishedAt: new Date(),
+          })
+          .where(
+            and(eq(aiJobs.workspaceId, workspaceId), eq(aiJobs.id, jobId), eq(aiJobs.status, 'running')),
+          );
+      } catch {
+        // Ignore a secondary failure; the original error is never logged raw.
+      }
+      throw httpCode(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Could not record the AI draft',
+        'AI_DRAFT_PERSIST_FAILED',
+      );
+    }
   }
 
   private async finish(

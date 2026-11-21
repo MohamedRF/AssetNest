@@ -51,9 +51,17 @@ export function Reports() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Effective permission for report/export access in this workspace. Members
+  // (and anyone without reports:read) must not fetch or see export metadata.
+  const canRead =
+    workspace?.role === 'owner' ||
+    workspace?.role === 'admin' ||
+    workspace?.role === 'manager' ||
+    workspace?.role === 'auditor';
+
   const exportsQuery = useQuery({
     queryKey: ['exports', workspaceId],
-    enabled: workspaceId !== undefined,
+    enabled: canRead && workspaceId !== undefined,
     queryFn: () => api.get<{ exports: ExportRow[] }>(`/workspaces/${workspaceId}/exports`),
   });
 
@@ -91,11 +99,6 @@ export function Reports() {
   }
 
   const exports = exportsQuery.data?.exports ?? [];
-  const canRead =
-    workspace?.role === 'owner' ||
-    workspace?.role === 'admin' ||
-    workspace?.role === 'manager' ||
-    workspace?.role === 'auditor';
 
   return (
     <div className="flex flex-col gap-4">
@@ -146,30 +149,40 @@ export function Reports() {
           <CardDescription>Most recent first — files are private to this workspace.</CardDescription>
         </CardHeader>
         <CardContent>
-          {exportsQuery.isLoading && <p className="text-sm text-muted-foreground">Loading exports…</p>}
-          {!exportsQuery.isLoading && exports.length === 0 && (
-            <p className="text-sm text-muted-foreground">No exports yet. Generate one above.</p>
+          {!canRead ? (
+            <p className="text-sm text-muted-foreground">
+              Export history is available to auditors, managers, admins and owners.
+            </p>
+          ) : (
+            <>
+              {exportsQuery.isLoading && <p className="text-sm text-muted-foreground">Loading exports…</p>}
+              {!exportsQuery.isLoading && exports.length === 0 && (
+                <p className="text-sm text-muted-foreground">No exports yet. Generate one above.</p>
+              )}
+              <ul className="flex flex-col divide-y divide-border">
+                {[...exports].reverse().map((row) => (
+                  <li key={row.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                    <FileSpreadsheet aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      {row.report} —{' '}
+                      <span className="text-muted-foreground">
+                        {new Date(row.createdAt).toLocaleString()}
+                      </span>
+                    </span>
+                    <Badge variant={row.status === 'completed' ? 'success' : 'warning'}>{row.status}</Badge>
+                    <a
+                      href={`/api/v1/workspaces/${workspaceId}/exports/${row.id}/download`}
+                      download
+                      aria-label={`Download ${row.report} export`}
+                      className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Download aria-hidden="true" className="h-4 w-4" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
-          <ul className="flex flex-col divide-y divide-border">
-            {[...exports].reverse().map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center gap-3 py-2.5">
-                <FileSpreadsheet aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {row.report} —{' '}
-                  <span className="text-muted-foreground">{new Date(row.createdAt).toLocaleString()}</span>
-                </span>
-                <Badge variant={row.status === 'completed' ? 'success' : 'warning'}>{row.status}</Badge>
-                <a
-                  href={`/api/v1/workspaces/${workspaceId}/exports/${row.id}/download`}
-                  download
-                  aria-label={`Download ${row.report} export`}
-                  className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <Download aria-hidden="true" className="h-4 w-4" />
-                </a>
-              </li>
-            ))}
-          </ul>
         </CardContent>
       </Card>
     </div>

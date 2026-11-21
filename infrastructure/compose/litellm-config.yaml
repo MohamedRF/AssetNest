@@ -1,0 +1,40 @@
+# LiteLLM gateway configuration for the optional AssetNest example (P5-11).
+#
+# This file is mounted into the litellm container by compose.litellm.yaml. It
+# defines ONE OpenAI-compatible upstream so the example runs with a single
+# LITELLM_OPENAI_API_KEY. Add more entries to model_list for Anthropic, Gemini,
+# Azure, Ollama, vLLM, etc. — LiteLLM normalizes them all to the OpenAI
+# /v1/chat/completions shape that AssetNest's OpenAI-compatible adapter speaks.
+#
+# The container's environment is intentionally limited to what
+# compose.litellm.yaml passes explicitly — LITELLM_MASTER_KEY and
+# OPENAI_API_KEY (from LITELLM_OPENAI_API_KEY). LiteLLM resolves the
+# `os.environ/…` references below from those variables and nothing else.
+# Reference: https://docs.litellm.ai/docs/proxy/configs
+
+model_list:
+  # A reasoning/text model used for most tasks.
+  - model_name: assetnest-text
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  # A vision-capable model for photo suggestions (image_tagging).
+  - model_name: assetnest-vision
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+# Optional: a fallback so a transient upstream error retries a second model.
+# AssetNest also has its own per-task fallback model route; this is the
+# gateway-level equivalent when you centralize routing in LiteLLM.
+litellm_settings:
+  drop_params: true
+  # Keep request logs out by default; enable only for local debugging.
+  set_verbose: false
+
+# A budget and rate limit shared across the workspace that points at this
+# gateway. AssetNest enforces its own per-task daily token budget as well;
+# this is defense-in-depth when the gateway is shared by multiple clients.
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

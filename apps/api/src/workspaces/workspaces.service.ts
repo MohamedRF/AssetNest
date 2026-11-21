@@ -246,73 +246,85 @@ export class WorkspacesService {
     if (!/^[0-9a-f-]{36}$/i.test(targetUserId)) {
       throw httpCode(HttpStatus.NOT_FOUND, 'Member not found', 'MEMBER_NOT_FOUND');
     }
-    const [target] = await this.db
-      .select({ roleKey: memberships.roleKey, membershipId: memberships.id })
-      .from(memberships)
-      .where(
-        and(
-          eq(memberships.workspaceId, ctx.workspaceId),
-          eq(memberships.userId, targetUserId),
-          eq(memberships.status, 'active'),
-        ),
-      )
-      .limit(1);
-    if (!target) {
-      throw httpCode(HttpStatus.NOT_FOUND, 'Member not found', 'MEMBER_NOT_FOUND');
-    }
 
-    // Authorization matrix: only owners grant/revoke owner or touch admins;
-    // admins may manage manager/member/auditor only and never grant admin/owner.
-    const grantingOwner = input.roleKey === 'owner';
-    if (grantingOwner && ctx.role !== 'owner') {
-      throw httpCode(
-        HttpStatus.FORBIDDEN,
-        'Only an owner can grant the owner role',
-        'OWNER_TRANSFER_REQUIRED',
-      );
-    }
-    if (
-      ctx.role === 'admin' &&
-      (target.roleKey === 'admin' || target.roleKey === 'owner' || input.roleKey === 'admin')
-    ) {
-      throw httpCode(
-        HttpStatus.FORBIDDEN,
-        'Admins cannot modify owner or admin members',
-        'INSUFFICIENT_SCOPE',
-      );
-    }
-    if (ctx.role !== 'owner' && ctx.role !== 'admin') {
-      throw httpCode(HttpStatus.FORBIDDEN, 'Insufficient workspace permissions', 'INSUFFICIENT_SCOPE');
-    }
+    // Serialize all role/removal mutations for this workspace so the last-owner
+    // invariant cannot be broken by two concurrent demotions/removals each
+    // observing "more than one owner" before either commits.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .select({ id: workspaces.id })
+        .from(workspaces)
+        .where(eq(workspaces.id, ctx.workspaceId))
+        .for('update');
 
-    if (target.roleKey === 'owner' && input.roleKey !== 'owner') {
-      const otherOwnersRow = await this.db
-        .select({ value: sql<number>`count(*)::int` })
+      const [target] = await tx
+        .select({ roleKey: memberships.roleKey, membershipId: memberships.id })
         .from(memberships)
         .where(
           and(
             eq(memberships.workspaceId, ctx.workspaceId),
-            eq(memberships.roleKey, 'owner'),
+            eq(memberships.userId, targetUserId),
             eq(memberships.status, 'active'),
           ),
-        );
-      if ((otherOwnersRow[0]?.value ?? 0) <= 1) {
-        throw httpCode(HttpStatus.CONFLICT, 'A workspace must keep at least one owner', 'LAST_OWNER');
+        )
+        .limit(1);
+      if (!target) {
+        throw httpCode(HttpStatus.NOT_FOUND, 'Member not found', 'MEMBER_NOT_FOUND');
       }
-    }
 
-    await this.db
-      .update(memberships)
-      .set({ roleKey: input.roleKey, updatedAt: new Date() })
-      .where(eq(memberships.id, target.membershipId));
+      // Authorization matrix: only owners grant/revoke owner or touch admins;
+      // admins may manage manager/member/auditor only and never grant admin/owner.
+      const grantingOwner = input.roleKey === 'owner';
+      if (grantingOwner && ctx.role !== 'owner') {
+        throw httpCode(
+          HttpStatus.FORBIDDEN,
+          'Only an owner can grant the owner role',
+          'OWNER_TRANSFER_REQUIRED',
+        );
+      }
+      if (
+        ctx.role === 'admin' &&
+        (target.roleKey === 'admin' || target.roleKey === 'owner' || input.roleKey === 'admin')
+      ) {
+        throw httpCode(
+          HttpStatus.FORBIDDEN,
+          'Admins cannot modify owner or admin members',
+          'INSUFFICIENT_SCOPE',
+        );
+      }
+      if (ctx.role !== 'owner' && ctx.role !== 'admin') {
+        throw httpCode(HttpStatus.FORBIDDEN, 'Insufficient workspace permissions', 'INSUFFICIENT_SCOPE');
+      }
 
-    await writeAuditLog(this.db, {
-      workspaceId: ctx.workspaceId,
-      actorId,
-      action: 'member.role_changed',
-      resource: 'membership',
-      resourceId: target.membershipId,
-      metadata: { from: target.roleKey, to: input.roleKey, targetUserId },
+      if (target.roleKey === 'owner' && input.roleKey !== 'owner') {
+        const otherOwnersRow = await tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(memberships)
+          .where(
+            and(
+              eq(memberships.workspaceId, ctx.workspaceId),
+              eq(memberships.roleKey, 'owner'),
+              eq(memberships.status, 'active'),
+            ),
+          );
+        if ((otherOwnersRow[0]?.value ?? 0) <= 1) {
+          throw httpCode(HttpStatus.CONFLICT, 'A workspace must keep at least one owner', 'LAST_OWNER');
+        }
+      }
+
+      await tx
+        .update(memberships)
+        .set({ roleKey: input.roleKey, updatedAt: new Date() })
+        .where(eq(memberships.id, target.membershipId));
+
+      await writeAuditLog(tx, {
+        workspaceId: ctx.workspaceId,
+        actorId,
+        action: 'member.role_changed',
+        resource: 'membership',
+        resourceId: target.membershipId,
+        metadata: { from: target.roleKey, to: input.roleKey, targetUserId },
+      });
     });
     return { ok: true, userId: targetUserId, role: input.roleKey };
   }
@@ -321,58 +333,69 @@ export class WorkspacesService {
     if (!/^[0-9a-f-]{36}$/i.test(targetUserId)) {
       throw httpCode(HttpStatus.NOT_FOUND, 'Member not found', 'MEMBER_NOT_FOUND');
     }
-    const [target] = await this.db
-      .select({ roleKey: memberships.roleKey, membershipId: memberships.id })
-      .from(memberships)
-      .where(
-        and(
-          eq(memberships.workspaceId, ctx.workspaceId),
-          eq(memberships.userId, targetUserId),
-          eq(memberships.status, 'active'),
-        ),
-      )
-      .limit(1);
-    if (!target) {
-      throw httpCode(HttpStatus.NOT_FOUND, 'Member not found', 'MEMBER_NOT_FOUND');
-    }
 
-    const actorIsOwner = ctx.role === 'owner';
-    const actorIsAdmin = ctx.role === 'admin';
-    const targetIsProtected = target.roleKey === 'owner' || target.roleKey === 'admin';
-    if (!actorIsOwner && !(actorIsAdmin && !targetIsProtected)) {
-      throw httpCode(HttpStatus.FORBIDDEN, 'Insufficient workspace permissions', 'INSUFFICIENT_SCOPE');
-    }
-    if (target.roleKey === 'owner') {
-      const otherOwnersRow = await this.db
-        .select({ value: sql<number>`count(*)::int` })
+    // Same workspace lock as changeRole: removing the last owner concurrently
+    // with another owner-removal must not drop the workspace to zero owners.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .select({ id: workspaces.id })
+        .from(workspaces)
+        .where(eq(workspaces.id, ctx.workspaceId))
+        .for('update');
+
+      const [target] = await tx
+        .select({ roleKey: memberships.roleKey, membershipId: memberships.id })
         .from(memberships)
         .where(
           and(
             eq(memberships.workspaceId, ctx.workspaceId),
-            eq(memberships.roleKey, 'owner'),
+            eq(memberships.userId, targetUserId),
             eq(memberships.status, 'active'),
           ),
-        );
-      if ((otherOwnersRow[0]?.value ?? 0) <= 1) {
-        throw httpCode(HttpStatus.CONFLICT, 'A workspace must keep at least one owner', 'LAST_OWNER');
+        )
+        .limit(1);
+      if (!target) {
+        throw httpCode(HttpStatus.NOT_FOUND, 'Member not found', 'MEMBER_NOT_FOUND');
       }
-    }
 
-    // Suspend instead of delete: keeps custody history and asset references intact.
-    await this.db
-      .update(memberships)
-      .set({ status: 'suspended', updatedAt: new Date() })
-      .where(eq(memberships.id, target.membershipId));
+      const actorIsOwner = ctx.role === 'owner';
+      const actorIsAdmin = ctx.role === 'admin';
+      const targetIsProtected = target.roleKey === 'owner' || target.roleKey === 'admin';
+      if (!actorIsOwner && !(actorIsAdmin && !targetIsProtected)) {
+        throw httpCode(HttpStatus.FORBIDDEN, 'Insufficient workspace permissions', 'INSUFFICIENT_SCOPE');
+      }
+      if (target.roleKey === 'owner') {
+        const otherOwnersRow = await tx
+          .select({ value: sql<number>`count(*)::int` })
+          .from(memberships)
+          .where(
+            and(
+              eq(memberships.workspaceId, ctx.workspaceId),
+              eq(memberships.roleKey, 'owner'),
+              eq(memberships.status, 'active'),
+            ),
+          );
+        if ((otherOwnersRow[0]?.value ?? 0) <= 1) {
+          throw httpCode(HttpStatus.CONFLICT, 'A workspace must keep at least one owner', 'LAST_OWNER');
+        }
+      }
 
-    // Revoke any outstanding sessions of the removed member is intentionally NOT done here:
-    // sessions are global (not per-workspace); the member simply loses workspace access.
-    await writeAuditLog(this.db, {
-      workspaceId: ctx.workspaceId,
-      actorId,
-      action: 'member.removed',
-      resource: 'membership',
-      resourceId: target.membershipId,
-      metadata: { targetUserId, previousRole: target.roleKey },
+      // Suspend instead of delete: keeps custody history and asset references intact.
+      await tx
+        .update(memberships)
+        .set({ status: 'suspended', updatedAt: new Date() })
+        .where(eq(memberships.id, target.membershipId));
+
+      // Revoke any outstanding sessions of the removed member is intentionally NOT done here:
+      // sessions are global (not per-workspace); the member simply loses workspace access.
+      await writeAuditLog(tx, {
+        workspaceId: ctx.workspaceId,
+        actorId,
+        action: 'member.removed',
+        resource: 'membership',
+        resourceId: target.membershipId,
+        metadata: { targetUserId, previousRole: target.roleKey },
+      });
     });
     return { ok: true };
   }
@@ -402,23 +425,14 @@ export class WorkspacesService {
       throw httpCode(HttpStatus.BAD_REQUEST, 'This invite link has expired', 'INVITE_EXPIRED');
     }
 
-    // Single-use: claim the invite before doing any work.
-    const claimed = await this.db
-      .update(workspaceInvites)
-      .set({ status: 'accepted', acceptedAt: new Date() })
-      .where(and(eq(workspaceInvites.id, invite.id), eq(workspaceInvites.status, 'pending')))
-      .returning({ id: workspaceInvites.id });
-    if (claimed.length === 0) {
-      throw httpCode(HttpStatus.BAD_REQUEST, 'This invite link has already been used', 'INVITE_INVALID');
-    }
-
+    // Verify credentials BEFORE consuming the invite. A wrong password for an
+    // existing account must not burn the single-use token — otherwise an
+    // attacker who guesses the invite email could DoS the real invitee.
     const [existing] = await this.db
-      .select({ id: users.id, displayName: users.displayName, passwordHash: users.passwordHash })
+      .select({ id: users.id, passwordHash: users.passwordHash })
       .from(users)
       .where(sql`lower(${users.email}) = ${invite.email}`)
       .limit(1);
-
-    let userId: string;
     if (existing) {
       const matches = existing.passwordHash
         ? await argon2.verify(existing.passwordHash, password).catch(() => false)
@@ -430,46 +444,69 @@ export class WorkspacesService {
           'INVALID_CREDENTIALS',
         );
       }
-      userId = existing.id;
-    } else {
-      const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-      const [created] = await this.db
-        .insert(users)
-        .values({ email: invite.email, displayName, passwordHash })
-        .returning({ id: users.id });
-      if (!created) {
-        throw httpCode(HttpStatus.INTERNAL_SERVER_ERROR, 'Could not create account', 'ACCOUNT_FAILED');
+    }
+    // Hash a new account's password up front so the transaction stays short.
+    const newPasswordHash = existing ? null : await argon2.hash(password, { type: argon2.argon2id });
+
+    // Claim the invite, provision the account/membership and write the audit
+    // record in ONE transaction. The claim is a conditional UPDATE, so a
+    // concurrent second accept (or a replay) claims zero rows and cannot
+    // double-enroll; any failure rolls the claim back and preserves the invite.
+    const userId = await this.db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(workspaceInvites)
+        .set({ status: 'accepted', acceptedAt: new Date() })
+        .where(and(eq(workspaceInvites.id, invite.id), eq(workspaceInvites.status, 'pending')))
+        .returning({ id: workspaceInvites.id });
+      if (!claimed) {
+        throw httpCode(HttpStatus.BAD_REQUEST, 'This invite link has already been used', 'INVITE_INVALID');
       }
-      userId = created.id;
-    }
 
-    const [membership] = await this.db
-      .select({ id: memberships.id, status: memberships.status, roleKey: memberships.roleKey })
-      .from(memberships)
-      .where(and(eq(memberships.workspaceId, invite.workspaceId), eq(memberships.userId, userId)))
-      .limit(1);
+      let resolvedUserId = existing?.id;
+      if (!resolvedUserId) {
+        const [created] = await tx
+          .insert(users)
+          .values({ email: invite.email, displayName, passwordHash: newPasswordHash! })
+          .returning({ id: users.id });
+        if (!created) {
+          throw httpCode(HttpStatus.INTERNAL_SERVER_ERROR, 'Could not create account', 'ACCOUNT_FAILED');
+        }
+        resolvedUserId = created.id;
+      }
 
-    if (membership?.status === 'active') {
-      throw httpCode(HttpStatus.CONFLICT, 'You are already a member of this workspace', 'ALREADY_MEMBER');
-    }
-    if (membership) {
-      await this.db
-        .update(memberships)
-        .set({ status: 'active', roleKey: invite.roleKey, updatedAt: new Date() })
-        .where(eq(memberships.id, membership.id));
-    } else {
-      await this.db
-        .insert(memberships)
-        .values({ workspaceId: invite.workspaceId, userId, roleKey: invite.roleKey, status: 'active' });
-    }
+      const [membership] = await tx
+        .select({ id: memberships.id, status: memberships.status })
+        .from(memberships)
+        .where(and(eq(memberships.workspaceId, invite.workspaceId), eq(memberships.userId, resolvedUserId)))
+        .limit(1);
 
-    await writeAuditLog(this.db, {
-      workspaceId: invite.workspaceId,
-      actorId: userId,
-      action: 'invite.accepted',
-      resource: 'workspace_invite',
-      resourceId: invite.id,
-      metadata: { roleKey: invite.roleKey },
+      if (membership?.status === 'active') {
+        // Roll back the claim: an already-active member keeps their invite intact.
+        throw httpCode(HttpStatus.CONFLICT, 'You are already a member of this workspace', 'ALREADY_MEMBER');
+      }
+      if (membership) {
+        await tx
+          .update(memberships)
+          .set({ status: 'active', roleKey: invite.roleKey, updatedAt: new Date() })
+          .where(eq(memberships.id, membership.id));
+      } else {
+        await tx.insert(memberships).values({
+          workspaceId: invite.workspaceId,
+          userId: resolvedUserId,
+          roleKey: invite.roleKey,
+          status: 'active',
+        });
+      }
+
+      await writeAuditLog(tx, {
+        workspaceId: invite.workspaceId,
+        actorId: resolvedUserId,
+        action: 'invite.accepted',
+        resource: 'workspace_invite',
+        resourceId: invite.id,
+        metadata: { roleKey: invite.roleKey },
+      });
+      return resolvedUserId;
     });
 
     const workspacesList = await this.authService.listWorkspaces(userId);

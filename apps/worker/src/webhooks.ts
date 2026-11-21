@@ -1,5 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { isPrivateHostLiteral, validateWebhookUrl } from '@assetnest/contracts';
@@ -33,7 +35,10 @@ interface TargetSubscription {
 }
 
 async function resolveTargets(db: Database, event: OutboxEventLike): Promise<TargetSubscription[]> {
-  // Explicit target (test pings, per-subscription redeliveries) bypass event-type matching.
+  // Explicit target (test pings, per-subscription redeliveries) bypass event-type matching
+  // but is ALWAYS constrained to the event's own workspace, so a crafted
+  // targetSubscriptionId can never redirect another workspace's event to an
+  // endpoint that workspace does not own.
   const targetSubscriptionId =
     typeof event.payloadJson['targetSubscriptionId'] === 'string'
       ? (event.payloadJson['targetSubscriptionId'] as string)
@@ -49,7 +54,11 @@ async function resolveTargets(db: Database, event: OutboxEventLike): Promise<Tar
     .from(webhookSubscriptions)
     .where(
       targetSubscriptionId
-        ? and(eq(webhookSubscriptions.id, targetSubscriptionId), isNull(webhookSubscriptions.deletedAt))
+        ? and(
+            eq(webhookSubscriptions.id, targetSubscriptionId),
+            eq(webhookSubscriptions.workspaceId, event.workspaceId),
+            isNull(webhookSubscriptions.deletedAt),
+          )
         : and(
             eq(webhookSubscriptions.workspaceId, event.workspaceId),
             eq(webhookSubscriptions.active, true),
@@ -67,32 +76,91 @@ async function resolveTargets(db: Database, event: OutboxEventLike): Promise<Tar
   });
 }
 
-async function assertDeliveryAllowed(url: string, allowPrivate: boolean): Promise<void> {
-  const policy = validateWebhookUrl(url, { allowPrivate });
-  if (!policy.ok) {
-    throw new PermanentDeliveryError(policy.reason ?? 'Destination rejected by policy');
-  }
-  const hostname = new URL(url).hostname.replace(/^\[|\]$/g, '');
-  if (isIP(hostname) !== 0) return; // literal IP already policy-checked
-  let addresses: Array<{ address: string }>;
-  try {
-    addresses = await lookup(hostname, { all: true, verbatim: true });
-  } catch {
-    throw new PermanentDeliveryError('Destination hostname does not resolve at delivery time');
-  }
-  for (const { address } of addresses) {
-    if (isPrivateHostLiteral(address)) {
-      throw new PermanentDeliveryError('Destination resolves to a private address at delivery time');
-    }
-  }
-}
-
 /** Permanent failures: record the outcome, never retry. */
 class PermanentDeliveryError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'PermanentDeliveryError';
   }
+}
+
+interface ApprovedAddress {
+  address: string;
+  family: number;
+}
+
+/**
+ * Resolve the destination hostname and pick ONE approved address to bind the
+ * connection to. The string policy already rejected unsafe schemes/credentials
+ * and literal private hosts; this catches public hostnames that resolve into
+ * private space at delivery time (DNS rebinding). The returned address is then
+ * pinned for the actual socket connection so the name the TLS layer verifies
+ * can never be re-resolved to a different (private) IP between check and use.
+ */
+async function resolveApprovedAddress(url: URL, allowPrivate: boolean): Promise<ApprovedAddress> {
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  const family = isIP(hostname);
+  if (family) {
+    // Literal IP: policy already validated it at the string layer.
+    return { address: hostname, family };
+  }
+  let addresses: Array<{ address: string; family: number }>;
+  try {
+    addresses = await lookup(hostname, { all: true, verbatim: true });
+  } catch {
+    throw new PermanentDeliveryError('Destination hostname does not resolve at delivery time');
+  }
+  if (addresses.length === 0) {
+    throw new PermanentDeliveryError('Destination hostname has no usable address');
+  }
+  if (!allowPrivate) {
+    for (const { address } of addresses) {
+      if (isPrivateHostLiteral(address)) {
+        throw new PermanentDeliveryError('Destination resolves to a private address at delivery time');
+      }
+    }
+  }
+  return addresses[0]!;
+}
+
+/**
+ * POST to an approved, pre-resolved address. Mirrors the AI provider transport
+ * (packages/ai/src/transport.ts): the connection is bound to the checked IP via
+ * a custom `lookup`, `agent: false`, and an explicit `family`, while the request
+ * URL's hostname still drives TLS SNI/certificate verification. Redirects are
+ * never followed (any 3xx surfaces as a status the caller treats as permanent),
+ * and the socket is torn down after REQUEST_TIMEOUT_MS.
+ */
+function postBound(
+  url: URL,
+  address: ApprovedAddress,
+  headers: Record<string, string>,
+  body: string,
+): Promise<{ status: number }> {
+  return new Promise((resolve, reject) => {
+    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const outgoing = send(
+      url,
+      {
+        method: 'POST',
+        headers,
+        agent: false,
+        family: address.family,
+        lookup: (_hostname, _options, callback) => callback(null, address.address, address.family),
+      },
+      (response) => {
+        const status = response.statusCode ?? 0;
+        // We do not consume the body; discard it so the socket can close.
+        response.destroy();
+        resolve({ status });
+      },
+    );
+    outgoing.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      outgoing.destroy(new Error('Webhook request timed out'));
+    });
+    outgoing.on('error', (error) => reject(error));
+    outgoing.end(body);
+  });
 }
 
 async function priorAttemptCount(db: Database, eventId: string, subscriptionId: string): Promise<number> {
@@ -115,6 +183,7 @@ export async function deliverWebhooks(
   config: AppConfig,
 ): Promise<WebhookDeliverySummary> {
   const targets = await resolveTargets(db, event);
+  const allowPrivate = config.WEBHOOKS_ALLOW_PRIVATE === true;
   let delivered = 0;
   let skipped = 0;
   let failed = 0;
@@ -153,10 +222,16 @@ export async function deliverWebhooks(
     let permanent = false;
 
     try {
-      await assertDeliveryAllowed(subscription.url, config.WEBHOOKS_ALLOW_PRIVATE === true);
-      const response = await fetch(subscription.url, {
-        method: 'POST',
-        headers: {
+      const url = new URL(subscription.url);
+      const policy = validateWebhookUrl(subscription.url, { allowPrivate });
+      if (!policy.ok) {
+        throw new PermanentDeliveryError(policy.reason ?? 'Destination rejected by policy');
+      }
+      const address = await resolveApprovedAddress(url, allowPrivate);
+      const response = await postBound(
+        url,
+        address,
+        {
           'Content-Type': 'application/json',
           'User-Agent': 'AssetNest-Webhooks/0.1',
           'X-Assetnest-Event': event.kind,
@@ -164,14 +239,12 @@ export async function deliverWebhooks(
           'X-Assetnest-Signature': `t=${timestampSeconds},v1=${signature}`,
         },
         body,
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        redirect: 'manual', // do not follow redirects — they can hop into private space
-      });
+      );
       responseCode = response.status;
       if (response.status >= 200 && response.status < 300) {
         status = 'delivered';
       } else if (response.status < 500 && response.status !== 429) {
-        // 4xx: the receiver rejected the payload — retrying will not help.
+        // 4xx (and any 3xx we refuse to follow): retrying will not help.
         permanent = true;
         errorMessage = `Receiver returned HTTP ${response.status}`;
       } else {

@@ -103,6 +103,15 @@ export async function deliverOutboxEvent(
     }
   }
 
+  // If any recipient email failed, propagate the failure so the BullMQ job
+  // handler throws and the queue retries with exponential backoff. Successful
+  // ('sent') rows are never re-claimed on retry (claim-first logic above), so
+  // a retry re-attempts only the previously-failed recipients. The message is a
+  // non-sensitive summary — never recipient emails or message bodies.
+  if (emailFailed > 0) {
+    throw new Error(`email delivery failed for ${emailFailed} recipient(s) of event ${event.id}`);
+  }
+
   return {
     log: logResult.rows.length > 0 ? 'sent' : 'skipped',
     emailSent,

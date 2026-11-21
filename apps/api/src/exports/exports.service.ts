@@ -1,7 +1,7 @@
 import { createWriteStream } from 'node:fs';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, stat, unlink } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, HttpException } from '@nestjs/common';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { exports as exportsTable } from '@assetnest/db';
 import type { Database } from '@assetnest/db';
@@ -14,12 +14,27 @@ import type { ReportKind } from './dto.js';
 
 const CHUNK_SIZE = 500;
 
-function csvEscape(value: string | null | undefined): string {
-  const s = value ?? '';
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`;
+/**
+ * Spreadsheet formula-injection defense (OWASP CSV Injection). Excel, Sheets and
+ * LibreOffice treat a leading = + - @ (or a leading tab/CR) as the start of a
+ * formula even inside a quoted cell, so untrusted text is prefixed with a single
+ * quote to force literal display. Genuinely numeric cells (amounts, costs) are
+ * validated numeric upstream and must be preserved verbatim, so they bypass this
+ * via the `numeric` option.
+ */
+const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
+function neutralizeFormula(value: string): string {
+  return FORMULA_PREFIX.test(value) ? `'${value}` : value;
+}
+
+function csvEscape(value: string | null | undefined, options: { numeric?: boolean } = {}): string {
+  const raw = value ?? '';
+  const safe = options.numeric ? raw : neutralizeFormula(raw);
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return s;
+  return safe;
 }
 
 @Injectable()
@@ -68,17 +83,25 @@ export class ExportsService {
       throw httpCode(HttpStatus.INTERNAL_SERVER_ERROR, 'Could not create export', 'EXPORT_FAILED');
     }
     const objectKey = `${exportRow.id}.csv`;
+    let target: string | null = null;
     try {
       await mkdir(resolve(process.cwd(), this.config.STORAGE_ROOT, 'exports'), { recursive: true });
-      const target = this.resolveInsideRoot(objectKey);
+      target = this.resolveInsideRoot(objectKey);
       const out = createWriteStream(target, { encoding: 'utf8' });
+      // Prevent an unhandled 'error' event from crashing the process; per-write
+      // and end() handlers below surface the failure to the awaiting caller.
+      out.on('error', () => undefined);
       try {
         await this.streamReport(out, ctx, report);
-      } finally {
-        await new Promise<void>((resolvePromise, rejectPromise) => {
-          out.end((error?: Error | null) => (error ? rejectPromise(error) : resolvePromise()));
-        });
+        await new Promise<void>((res, rej) =>
+          out.end((error?: Error | null) => (error ? rej(error) : res())),
+        );
+      } catch (error) {
+        out.destroy();
+        throw error;
       }
+      // The file is fully written and closed. Only now publish completion
+      // metadata, so the download endpoint never advertises a half-written file.
       await this.db
         .update(exportsTable)
         .set({ objectKey, status: 'completed' })
@@ -98,8 +121,16 @@ export class ExportsService {
         downloadUrl: `/api/v1/workspaces/${ctx.workspaceId}/exports/${exportRow.id}/download`,
       };
     } catch (error) {
+      // Clean up the partial file and mark the export failed; never leave an
+      // orphaned or half-written CSV that a later download could serve.
+      if (target) {
+        await unlink(target).catch(() => undefined);
+      }
       await this.db.update(exportsTable).set({ status: 'failed' }).where(eq(exportsTable.id, exportRow.id));
-      throw error;
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw httpCode(HttpStatus.INTERNAL_SERVER_ERROR, 'Could not generate the export', 'EXPORT_FAILED');
     }
   }
 
@@ -108,12 +139,24 @@ export class ExportsService {
     ctx: WorkspaceContext,
     report: ReportKind,
   ): Promise<void> {
-    const write = (line: string) => {
-      if (!out.write(line + '\n')) {
-        return new Promise<void>((resolvePromise) => out.once('drain', resolvePromise));
-      }
-      return Promise.resolve();
-    };
+    const write = (line: string) =>
+      new Promise<void>((resolvePromise, rejectPromise) => {
+        const onError = (error: Error) => {
+          out.removeListener('drain', onDrain);
+          rejectPromise(error);
+        };
+        const onDrain = () => {
+          out.removeListener('error', onError);
+          resolvePromise();
+        };
+        out.once('error', onError);
+        if (out.write(line + '\n')) {
+          out.removeListener('error', onError);
+          resolvePromise();
+        } else {
+          out.once('drain', onDrain);
+        }
+      });
 
     if (report === 'assets') {
       await write(
@@ -157,7 +200,7 @@ export class ExportsService {
               csvEscape(row.status),
               csvEscape(row.condition),
               csvEscape(row.purchase_date),
-              csvEscape(row.amount),
+              csvEscape(row.amount, { numeric: true }),
               csvEscape(row.currency),
               csvEscape(row.location_path),
               csvEscape(row.category_name),
@@ -244,7 +287,7 @@ export class ExportsService {
             csvEscape(row.asset_name),
             csvEscape(row.performed_at),
             csvEscape(row.vendor),
-            csvEscape(row.cost),
+            csvEscape(row.cost, { numeric: true }),
             csvEscape(row.currency),
             csvEscape(row.notes),
           ].join(','),

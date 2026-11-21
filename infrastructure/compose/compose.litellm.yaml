@@ -1,0 +1,93 @@
+# Optional: LiteLLM gateway profile (P5-11)
+#
+# LiteLLM is an OPTIONAL, independent gateway that can fan AssetNest's
+# OpenAI-compatible connection out to many upstream providers with budgets,
+# retries and fallbacks. AssetNest does NOT require LiteLLM or Python — the
+# native OpenAI/Anthropic/Gemini adapters, the generic OpenAI-compatible
+# adapter and the local Ollama connector all work without this file.
+#
+# Use this only if you want LiteLLM's provider routing. It is not the only
+# integration path and never a hard dependency.
+#
+# Bring it up alongside the reference stack (run from the repo root):
+#   docker compose --env-file .env \
+#     -f infrastructure/compose/compose.yaml \
+#     -f infrastructure/compose/compose.litellm.yaml \
+#     --profile app --profile litellm up -d
+#
+# --- Making the gateway reachable from AssetNest -----------------------------
+# The gateway is not published on the host; only the api/worker containers can
+# reach it, as http://litellm:4000. Two settings in the repo-root .env (read by
+# api/worker through the env_file in compose.yaml) are required:
+#
+#   AI_ENABLED=true                        # AI feature flag; default is false
+#   AI_PRIVATE_ORIGINS=http://litellm:4000 # comma-separated HTTP(S) origins
+#
+# Why AI_PRIVATE_ORIGINS: AssetNest's AI transport is an SSRF guard. Plain
+# http:// endpoints and private (RFC1918 / loopback) addresses are refused
+# unless the exact origin is listed in AI_PRIVATE_ORIGINS — a deliberate,
+# explicit allowlist for trusted internal endpoints. `http://litellm:4000` is
+# plain HTTP on the private compose network, so without the entry every call
+# fails with AI_PROVIDER_INVALID_ENDPOINT. Keep this list to trusted internal
+# origins only: adding a public host would relax the guard for that origin.
+# TLS verification is unchanged for public https:// endpoints — the transport
+# resolves the hostname, rejects private/link-local/metadata addresses, then
+# pins the request to that checked address while still verifying the
+# certificate and SNI against the original hostname.
+#
+# Then in AssetNest Settings → AI → Connections add an "OpenAI-compatible API"
+# connection with Base URL: http://litellm:4000/v1  (container network name) and
+# the LiteLLM master key as the API key. Mark a model as verified and route the
+# tasks you want through it.
+#
+# Required .env additions (never commit real keys):
+#   LITELLM_MASTER_KEY=sk-...            # protects the gateway's own API
+#   LITELLM_OPENAI_API_KEY=sk-...        # upstream provider key(s) as needed
+#   # add one LITELLM_<PROVIDER>_API_KEY per upstream you configure below
+#
+# Only the gateway's own variables are passed to this container (see
+# `environment:` below). There is deliberately no env_file: the root .env holds
+# DATABASE_URL, SESSION_SECRET, ENCRYPTION_KEY, SMTP credentials and AssetNest's
+# own AI keys, and none of them belong in the gateway container.
+#
+# The bundled config routes to a single OpenAI-compatible upstream so the
+# example runs end to end with one key. Edit model_list to add more providers,
+# fallbacks and budgets — see https://docs.litellm.ai/docs/proxy/configs.
+
+services:
+  litellm:
+    # Pinned release tag. `main-stable` was mutable and could change under you
+    # between pulls. LiteLLM v1.110.2 was released 2026-11-20
+    # (https://github.com/BerriAI/litellm/releases/tag/v1.110.2).
+    # Verified against GHCR on 2026-11-21: ghcr.io/berriai/litellm:v1.110.2
+    # returns HTTP 200 with digest
+    # sha256:ef798594ca3db8d81bad2e1439f536f49b71fe095ee9f20416f5e149b4e22035 —
+    # the same digest `main-stable` resolved to at that time, so pinning does
+    # not change behaviour today. Bump deliberately after reading the release
+    # notes; `docker compose pull` will not move this tag on its own.
+    image: ghcr.io/berriai/litellm:v1.110.2
+    restart: unless-stopped
+    profiles: ['litellm']
+    # No env_file: AssetNest's root .env is never mounted into the gateway.
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set LITELLM_MASTER_KEY in .env (see this file's header)}
+      # Forwarded to the upstream provider(s) referenced in litellm-config.yaml
+      # (os.environ/OPENAI_API_KEY). Add one variable per additional upstream.
+      OPENAI_API_KEY: ${LITELLM_OPENAI_API_KEY:?Set LITELLM_OPENAI_API_KEY in .env}
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    command: ['--config', '/app/config.yaml', '--port', '4000']
+    # Not published on the host: only the api/worker containers reach it over the
+    # compose network as `litellm`. Publish a port only for local debugging.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s

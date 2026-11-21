@@ -351,6 +351,45 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workspaces/{workspaceId}/ai/tasks/{task}/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        task: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    /** @description Describe the configured primary/fallback provider for a task so the UI can show what is shared before consenting. */
+    get: operations['previewAiTaskRoute'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/ai/tasks/approve-invoice': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Approve a reviewed invoice draft, creating the proposed assets atomically with the approval and audit records. Requires a human session with ai:use and assets:write. */
+    post: operations['approveAiInvoice'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/workspaces/{workspaceId}/ai/tasks/asset-suggestions': {
     parameters: {
       query?: never;
@@ -399,6 +438,44 @@ export interface paths {
     get?: never;
     put?: never;
     post: operations['draftAiInvoice'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/ai/tasks/invoice-drafts/{jobId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        jobId: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    /** @description Retrieve a stored invoice draft for review. Requires ai:use, assets:read and documents:read. */
+    get: operations['getAiInvoiceDraft'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/workspaces/{workspaceId}/ai/tasks/maintenance': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['askAiMaintenanceAssistant'];
     delete?: never;
     options?: never;
     head?: never;
@@ -2793,6 +2870,168 @@ export interface operations {
       };
     };
   };
+  previewAiTaskRoute: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        task:
+          | 'invoice_extraction'
+          | 'image_tagging'
+          | 'natural_language_search'
+          | 'maintenance_assistant'
+          | 'asset_chat';
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            available: boolean;
+            consentRequired: boolean;
+            fallback: {
+              connectionName: string;
+              modelLabel: string;
+              providerKind: string;
+            } | null;
+            primary: {
+              connectionName: string;
+              modelLabel: string;
+              providerKind: string;
+            } | null;
+            routeKey: string;
+            /** @enum {string} */
+            task:
+              | 'invoice_extraction'
+              | 'image_tagging'
+              | 'natural_language_search'
+              | 'maintenance_assistant'
+              | 'asset_chat';
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  approveAiInvoice: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          assets: {
+            amount?: string;
+            assetTag: string;
+            /** Format: uuid */
+            categoryId?: string | null;
+            /**
+             * @default good
+             * @enum {string}
+             */
+            condition?: 'new' | 'good' | 'fair' | 'poor' | 'damaged' | 'unknown';
+            currency?: string;
+            /** Format: uuid */
+            custodianMembershipId?: string | null;
+            customValues?: {
+              [key: string]: unknown;
+            };
+            displayName: string;
+            /** Format: uuid */
+            locationId?: string | null;
+            /** Format: uuid */
+            modelId?: string | null;
+            notes?: string;
+            purchasedAt?: string;
+            serialNumber?: string;
+            /**
+             * @default available
+             * @enum {string}
+             */
+            status?:
+              | 'available'
+              | 'assigned'
+              | 'checked_out'
+              | 'in_repair'
+              | 'lost'
+              | 'retired'
+              | 'disposed'
+              | 'archived';
+            tags?: string[];
+          }[];
+          /** Format: uuid */
+          jobId: string;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            alreadyApproved: boolean;
+            /** Format: uuid */
+            approvalId: string;
+            assetIds: string[];
+            assets: {
+              assetTag: string;
+              displayName: string;
+              /** Format: uuid */
+              id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
   draftAiPhotoSuggestions: {
     parameters: {
       query?: never;
@@ -2867,6 +3106,7 @@ export interface operations {
           assetIds: string[];
           consent: boolean;
           question: string;
+          routeKey?: string;
         };
       };
     };
@@ -2972,6 +3212,121 @@ export interface operations {
       };
     };
   };
+  getAiInvoiceDraft: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        jobId: string;
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            draft: {
+              currency: string | null;
+              invoiceNo: string | null;
+              items: {
+                confidence: number;
+                evidence: string | null;
+                model: string | null;
+                name: string;
+                price: string | null;
+                serialNumber: string | null;
+                /** Format: date */
+                warrantyEndsOn: string | null;
+              }[];
+              /** Format: date */
+              purchaseDate: string | null;
+              vendor: string | null;
+            };
+            /** Format: uuid */
+            jobId: string;
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  askAiMaintenanceAssistant: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: uuid */
+          assetId: string;
+          consent: boolean;
+          question: string;
+          routeKey?: string;
+        };
+      };
+    };
+    responses: {
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            draft: {
+              answer: string;
+            };
+            /** Format: uuid */
+            jobId: string;
+          };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
   draftAiInventoryQuery: {
     parameters: {
       query?: never;
@@ -2986,6 +3341,7 @@ export interface operations {
         'application/json': {
           consent: boolean;
           question: string;
+          routeKey?: string;
         };
       };
     };

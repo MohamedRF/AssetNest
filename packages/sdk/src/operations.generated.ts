@@ -811,6 +811,42 @@ export const restOperations = {
       '200': 'json',
     },
   },
+  previewAiTaskRoute: {
+    method: 'GET',
+    path: '/api/v1/workspaces/{workspaceId}/ai/tasks/{task}/preview',
+    bearer: false,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  getAiInvoiceDraft: {
+    method: 'GET',
+    path: '/api/v1/workspaces/{workspaceId}/ai/tasks/invoice-drafts/{jobId}',
+    bearer: false,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  approveAiInvoice: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/ai/tasks/approve-invoice',
+    bearer: false,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
+  askAiMaintenanceAssistant: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/ai/tasks/maintenance',
+    bearer: false,
+    multipart: false,
+    responseFormats: {
+      '200': 'json',
+    },
+  },
   draftAiInvoice: {
     method: 'POST',
     path: '/api/v1/workspaces/{workspaceId}/ai/tasks/extract-invoice',

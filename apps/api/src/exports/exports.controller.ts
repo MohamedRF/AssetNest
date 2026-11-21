@@ -72,6 +72,19 @@ export class ExportsController {
     res.setHeader('Content-Length', String(size));
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('Content-Disposition', `attachment; filename="${row.report}-export.csv"`);
-    createReadStream(filePath).pipe(res);
+    const stream = createReadStream(filePath);
+    // A read error mid-download (file removed, disk fault) must not hang the
+    // socket. If nothing has been written yet, return a clean error; otherwise
+    // abort the connection so the client sees a truncated, failed download
+    // rather than a silently short file.
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.status(HttpStatus.INTERNAL_SERVER_ERROR).end();
+      } else {
+        res.destroy();
+      }
+    });
+    res.on('close', () => stream.destroy());
+    stream.pipe(res);
   }
 }

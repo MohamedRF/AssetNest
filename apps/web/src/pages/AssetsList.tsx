@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, PackagePlus, QrCode, Search, Upload } from 'lucide-react';
-import type { AssetListQuery, AssetPage } from '@assetnest/sdk';
+import { ChevronLeft, ChevronRight, PackagePlus, QrCode, Search, Sparkles, Upload } from 'lucide-react';
+import type { AssetListQuery, AssetPage, OperationResult } from '@assetnest/sdk';
 import { ASSET_STATUSES, AssetStatusBadge } from '../components/AssetStatusBadge';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { EmptyState } from '../components/EmptyState';
@@ -10,13 +10,42 @@ import { PageHeader } from '../components/PageHeader';
 import { Button, buttonVariants } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select } from '../components/ui/input';
+import { api, isApiError } from '../lib/api';
 import { assetsApi } from '../lib/assets-api';
 import { cn } from '../lib/utils';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 
 type AssetRow = AssetPage['items'][number];
+type FilterDraft = OperationResult<'draftAiInventoryQuery'>['draft'];
+type FilterDraftResponse = OperationResult<'draftAiInventoryQuery'>;
+type RoutePreview = OperationResult<'previewAiTaskRoute'>;
 
 const PAGE_SIZE = 20;
+
+/** Apply an AI-proposed filter AST to the URL-driven list state. */
+function filtersToParams(filters: FilterDraft['filters']): URLSearchParams {
+  const next = new URLSearchParams();
+  for (const filter of filters) {
+    if (filter.field === 'status') next.set('status', filter.value);
+    else if (filter.field === 'condition') next.set('condition', filter.value);
+    else if (filter.field === 'search') next.set('q', filter.value);
+  }
+  next.set('page', '1');
+  return next;
+}
+
+function describeFilters(filters: FilterDraft['filters']): string {
+  if (filters.length === 0) return 'No filters';
+  return filters
+    .map((filter) =>
+      filter.field === 'search'
+        ? `name contains "${filter.value}"`
+        : filter.field === 'status'
+          ? `status is ${filter.value}`
+          : `condition is ${filter.value}`,
+    )
+    .join(' · ');
+}
 
 export function AssetsList() {
   const { workspace } = useSelectedWorkspace();
@@ -26,11 +55,31 @@ export function AssetsList() {
 
   const [q, setQ] = useState(searchParams.get('q') ?? '');
   const [status, setStatus] = useState(searchParams.get('status') ?? '');
+  const [condition, setCondition] = useState(searchParams.get('condition') ?? '');
   const [lookup, setLookup] = useState('');
+  const [aiQuestion, setAiQuestion] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiNote, setAiNote] = useState<string | null>(null);
+  const [aiConsentRoute, setAiConsentRoute] = useState<string | null>(null);
+  const activeWorkspace = useRef(workspaceId);
   const page = Number.parseInt(searchParams.get('page') ?? '1', 10) || 1;
 
+  const canUseAi =
+    workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
+
+  const preview = useQuery({
+    queryKey: ['ai-route-preview', workspaceId, 'natural_language_search'],
+    enabled: canUseAi && workspaceId !== undefined,
+    queryFn: () =>
+      api.get<RoutePreview>(`/workspaces/${workspaceId}/ai/tasks/natural_language_search/preview`),
+  });
+  const aiAvailable = preview.data?.available === true;
+  const aiRouteKey = preview.data?.routeKey ?? '';
+  const aiConsented = aiRouteKey !== '' && aiConsentRoute === aiRouteKey;
+
   const query = useQuery({
-    queryKey: ['assets', workspaceId, q, status, page],
+    queryKey: ['assets', workspaceId, q, status, condition, page],
     enabled: workspaceId !== undefined,
     queryFn: () =>
       assetsApi.list(workspaceId, {
@@ -38,6 +87,7 @@ export function AssetsList() {
         pageSize: PAGE_SIZE,
         q: q || undefined,
         status: (status || undefined) as AssetListQuery['status'],
+        condition: (condition || undefined) as AssetListQuery['condition'],
       }),
   });
 
@@ -49,9 +99,48 @@ export function AssetsList() {
     const next = new URLSearchParams();
     if (q.trim()) next.set('q', q.trim());
     if (status) next.set('status', status);
+    if (condition) next.set('condition', condition);
     next.set('page', '1');
     setSearchParams(next, { replace: true });
   };
+
+  const askAi = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!workspaceId || aiBusy || !aiQuestion.trim() || !aiAvailable || !aiConsented) return;
+    const requestWorkspace = workspaceId;
+    setAiBusy(true);
+    setAiError(null);
+    setAiNote(null);
+    try {
+      const result = await api.post<FilterDraftResponse>(`/workspaces/${requestWorkspace}/ai/tasks/query`, {
+        question: aiQuestion.trim(),
+        consent: true,
+        routeKey: aiRouteKey,
+      });
+      if (requestWorkspace !== activeWorkspace.current) return; // workspace changed — discard
+      setSearchParams(filtersToParams(result.draft.filters), { replace: true });
+      setAiNote(`Applied: ${describeFilters(result.draft.filters)}`);
+      setAiQuestion('');
+    } catch (error) {
+      if (requestWorkspace !== activeWorkspace.current) return; // workspace changed — discard
+      if (isApiError(error) && error.code === 'AI_ROUTE_CHANGED') {
+        setAiConsentRoute(null);
+      }
+      setAiError(isApiError(error) ? error.detail : 'Could not build filters from that request.');
+    } finally {
+      if (requestWorkspace === activeWorkspace.current) setAiBusy(false);
+    }
+  };
+
+  // Discard any pending AI state when the workspace changes.
+  useEffect(() => {
+    activeWorkspace.current = workspaceId;
+    setAiBusy(false);
+    setAiQuestion('');
+    setAiError(null);
+    setAiNote(null);
+    setAiConsentRoute(null);
+  }, [workspaceId]);
 
   const submitLookup = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -116,6 +205,7 @@ export function AssetsList() {
   useEffect(() => {
     setQ(searchParams.get('q') ?? '');
     setStatus(searchParams.get('status') ?? '');
+    setCondition(searchParams.get('condition') ?? '');
   }, [searchParams]);
 
   if (!workspaceId) {
@@ -183,6 +273,19 @@ export function AssetsList() {
               </option>
             ))}
           </Select>
+          <Select
+            aria-label="Filter by condition"
+            className="w-36"
+            value={condition}
+            onChange={(event) => setCondition(event.target.value)}
+          >
+            <option value="">All conditions</option>
+            {['new', 'good', 'fair', 'poor', 'damaged', 'unknown'].map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
           <Button type="submit" variant="outline" size="sm">
             Search
           </Button>
@@ -209,6 +312,71 @@ export function AssetsList() {
         </form>
       </div>
 
+      {/* AI-assisted filtering (P5-09): natural language → validated filter AST */}
+      {canUseAi && aiAvailable && (
+        <form
+          onSubmit={askAi}
+          className="mb-4 flex flex-col gap-2 rounded-xl border border-accent/30 bg-accent-subtle/40 p-3"
+        >
+          <p className="text-xs text-muted-foreground">
+            AI will send your request to{' '}
+            <span className="font-medium text-foreground">
+              {[preview.data?.primary, preview.data?.fallback]
+                .filter((leg): leg is NonNullable<typeof leg> => leg !== null)
+                .map(
+                  (leg, index) =>
+                    `${index === 0 ? '' : 'fallback '}${leg.connectionName} (${leg.modelLabel})`,
+                )
+                .join(' or ') || 'a configured AI provider'}
+            </span>
+            . AI is optional.
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Sparkles
+                aria-hidden="true"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-accent"
+              />
+              <Input
+                value={aiQuestion}
+                onChange={(event) => setAiQuestion(event.target.value)}
+                placeholder="Ask AI to filter — e.g. damaged laptops or available assets"
+                aria-label="Ask AI to filter assets"
+                className="h-10 pl-9"
+                disabled={aiBusy}
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              disabled={aiBusy || !aiQuestion.trim() || !aiConsented}
+            >
+              {aiBusy ? 'Filtering…' : 'Ask AI'}
+            </Button>
+            {aiNote && (
+              <p role="status" className="text-xs text-muted-foreground sm:ml-2">
+                {aiNote}
+              </p>
+            )}
+            {aiError && (
+              <p role="alert" className="text-xs text-danger sm:ml-2">
+                {aiError}
+              </p>
+            )}
+          </div>
+          <label className="flex items-start gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 rounded border-border"
+              checked={aiConsented}
+              onChange={(event) => setAiConsentRoute(event.target.checked ? aiRouteKey : null)}
+            />
+            <span>I understand my request will be shared with the provider above.</span>
+          </label>
+        </form>
+      )}
+
       {/* Table */}
       {query.isLoading && (
         <p
@@ -229,14 +397,14 @@ export function AssetsList() {
       {showEmpty && (
         <EmptyState
           icon={PackagePlus}
-          title={q || status ? 'No assets match these filters' : 'Register your first asset'}
+          title={q || status || condition ? 'No assets match these filters' : 'Register your first asset'}
           description={
-            q || status
-              ? 'Try clearing the search or status filter.'
+            q || status || condition
+              ? 'Try clearing the search, status or condition filter.'
               : 'Laptops, tools, appliances, furniture — if your workspace owns it, it belongs here.'
           }
-          actionLabel={q || status ? 'Clear filters' : 'Add first asset'}
-          actionHref={q || status ? '/assets' : '/assets/new'}
+          actionLabel={q || status || condition ? 'Clear filters' : 'Add first asset'}
+          actionHref={q || status || condition ? '/assets' : '/assets/new'}
         />
       )}
       {!query.isLoading && rows.length > 0 && (

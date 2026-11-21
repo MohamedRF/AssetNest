@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { DocumentsCard } from '../components/DocumentsCard';
 import { CustodyActions } from '../components/CustodyActions';
+import { AiChatCard } from '../components/AiChatCard';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/ui/toast';
@@ -28,6 +29,8 @@ export function AssetDetailPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
 
   const canManage =
+    workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
+  const canUseAi =
     workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
 
   const assetQuery = useQuery({
@@ -240,6 +243,8 @@ export function AssetDetailPage() {
           {workspaceId && (
             <DocumentsCard workspaceId={workspaceId} assetId={asset.id} canManage={canManage} />
           )}
+
+          {workspaceId && canUseAi && <AiChatCard workspaceId={workspaceId} assetIds={[asset.id]} />}
 
           <Card>
             <CardHeader>

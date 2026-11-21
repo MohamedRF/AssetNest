@@ -208,6 +208,12 @@ describe('audits (e2e)', () => {
       .set('x-csrf-token', owner.csrfToken)
       .send({});
     expect(closeAgain.status).toBe(409);
+
+    // Exactly one close event is ever emitted, even under a repeated close.
+    const closed = await testDb.execute<{ count: string }>(
+      sql`select count(*)::text as count from outbox_events where aggregate_id = ${auditId} and kind = 'audit.closed'`,
+    );
+    expect(Number(closed.rows[0]?.count ?? '0')).toBe(1);
   });
 
   it('rejects a plain member (audits:manage required)', async () => {

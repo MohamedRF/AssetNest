@@ -63,10 +63,23 @@ const consumer = new Worker(
     const event = { id: eventId, workspaceId, kind, aggregateId, payloadJson: payload };
     // Targeted deliveries (test pings, per-subscription retries) skip log/email.
     const webhookOnly = typeof payload.targetSubscriptionId === 'string';
+    // Email/log delivery and webhook delivery are independent. A transient email
+    // failure must still reach the queue's retry mechanism, but it must not stop
+    // webhooks from being attempted this pass. Run both, then rethrow the email
+    // failure so BullMQ retries (already-sent recipients and delivered webhooks
+    // are deduped, so a retry only re-attempts what actually failed).
+    let deliveryError: unknown;
     if (!webhookOnly) {
-      await deliverOutboxEvent(db, event, emailTransport, config);
+      try {
+        await deliverOutboxEvent(db, event, emailTransport, config);
+      } catch (error) {
+        deliveryError = error;
+      }
     }
     await deliverWebhooks(db, event, config);
+    if (deliveryError) {
+      throw deliveryError;
+    }
   },
   { connection, concurrency: 5 },
 );

@@ -276,4 +276,60 @@ describe('scoped API tokens (e2e)', () => {
       .send({ name: 'rogue', scopes: ['assets:write'] });
     expect(res.status).toBe(403);
   });
+
+  it('a bearer token cannot mint, rotate or revoke tokens even with integrations:manage', async () => {
+    // The owner mints an automation token that itself carries integrations:manage.
+    const minted = await http()
+      .post(`/api/v1/workspaces/${workspaceId}/api-tokens`)
+      .set('Cookie', owner.cookie)
+      .set('x-csrf-token', owner.csrfToken)
+      .send({ name: 'token-admin', scopes: ['integrations:manage', 'assets:read'] });
+    expect(minted.status).toBe(201);
+    const adminToken = minted.body.token as string;
+    const adminTokenId = minted.body.id as string;
+
+    // Using that token as a bearer credential to create another token is refused.
+    const create = await http()
+      .post(`/api/v1/workspaces/${workspaceId}/api-tokens`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'escalated', scopes: ['assets:read'] });
+    expect(create.status).toBe(403);
+    expect(create.body.code).toBe('AI_SESSION_REQUIRED');
+
+    // Rotate and revoke via the bearer token are refused too.
+    const rotate = await http()
+      .post(`/api/v1/workspaces/${workspaceId}/api-tokens/${adminTokenId}/rotate`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(rotate.status).toBe(403);
+    expect(rotate.body.code).toBe('AI_SESSION_REQUIRED');
+
+    const revoke = await http()
+      .delete(`/api/v1/workspaces/${workspaceId}/api-tokens/${adminTokenId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(revoke.status).toBe(403);
+    expect(revoke.body.code).toBe('AI_SESSION_REQUIRED');
+  });
+
+  it('a narrow-scope bearer token cannot administer tokens (integrations:manage required)', async () => {
+    // Fresh read-only token (the earlier one may already be revoked by the rotate test).
+    const minted = await http()
+      .post(`/api/v1/workspaces/${workspaceId}/api-tokens`)
+      .set('Cookie', owner.cookie)
+      .set('x-csrf-token', owner.csrfToken)
+      .send({ name: 'reader-2', scopes: ['assets:read'] });
+    expect(minted.status).toBe(201);
+    const readOnly = minted.body.token as string;
+
+    const denied = await http()
+      .get(`/api/v1/workspaces/${workspaceId}/api-tokens`)
+      .set('Authorization', `Bearer ${readOnly}`);
+    expect(denied.status).toBe(403);
+    expect(denied.body.code).toBe('INSUFFICIENT_SCOPE');
+
+    // And it stays confined to its own workspace for data reads.
+    const cross = await http()
+      .get(`/api/v1/workspaces/${secondWorkspaceId}/assets`)
+      .set('Authorization', `Bearer ${readOnly}`);
+    expect(cross.status).toBe(404);
+  });
 });

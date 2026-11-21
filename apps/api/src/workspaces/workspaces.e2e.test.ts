@@ -16,6 +16,8 @@ import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap.js';
 import { APP_CONFIG, DATABASE } from '../common/tokens.js';
 import { SESSION_COOKIE } from '../auth/auth.constants.js';
+import { WorkspacesService } from './workspaces.service.js';
+import type { WorkspaceContext } from '../auth/workspace.guard.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsFolder = resolve(here, '../../../../packages/db/migrations');
@@ -263,5 +265,47 @@ describe('workspaces (e2e)', () => {
     const auditor = await signIn('auditor@example.com', 'auditor-passphrase-123');
     const res = await http().get(`/api/v1/workspaces/${workspaceId}`).set('Cookie', auditor.cookie);
     expect(res.status).toBe(404);
+  });
+
+  it('serializes concurrent owner removals so a workspace never reaches zero owners', async () => {
+    // Fresh workspace with two owners (the bootstrap owner + a promoted co-owner).
+    const wsId = await createWorkspace(owner, 'Two Owners', 'two-owners');
+    const invite = await http()
+      .post(`/api/v1/workspaces/${wsId}/invites`)
+      .set('Cookie', owner.cookie)
+      .set('x-csrf-token', owner.csrfToken)
+      .send({ email: 'coowner@example.com', roleKey: 'manager' });
+    const inviteToken = new URL(invite.body.acceptUrl as string).searchParams.get('token')!;
+    await http()
+      .post('/api/v1/auth/invites/accept')
+      .send({ token: inviteToken, displayName: 'Co Owner', password: 'coowner-passphrase-123' });
+    const coOwner = await signIn('coowner@example.com', 'coowner-passphrase-123');
+    const promote = await http()
+      .post(`/api/v1/workspaces/${wsId}/members/${coOwner.userId}/role`)
+      .set('Cookie', owner.cookie)
+      .set('x-csrf-token', owner.csrfToken)
+      .send({ roleKey: 'owner' });
+    expect(promote.status).toBe(200);
+
+    // Drive the service directly (bypassing the HTTP guard) so both removals
+    // enter the mutation path concurrently — the workspace row lock must let
+    // exactly one succeed and reject the other with LAST_OWNER.
+    const service = app.get(WorkspacesService);
+    const ownerCtx = {
+      workspaceId: wsId,
+      membershipId: 'actor',
+      role: 'owner',
+    } as unknown as WorkspaceContext;
+    const results = await Promise.allSettled([
+      service.removeMember(ownerCtx, owner.userId, owner.userId),
+      service.removeMember(ownerCtx, owner.userId, coOwner.userId),
+    ]);
+    const statuses = results.map((r) => (r.status === 'fulfilled' ? 'fulfilled' : 'rejected'));
+    expect(statuses.sort()).toEqual(['fulfilled', 'rejected']);
+
+    const owners = await testDb.execute<{ count: string }>(
+      sql`select count(*)::text as count from memberships where workspace_id = ${wsId} and role_key = 'owner' and status = 'active'`,
+    );
+    expect(Number(owners.rows[0]?.count ?? '0')).toBe(1);
   });
 });

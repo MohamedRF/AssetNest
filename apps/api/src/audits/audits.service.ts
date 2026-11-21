@@ -123,63 +123,70 @@ export class AuditsService {
   }
 
   async verify(ctx: WorkspaceContext, actorId: string, auditId: string, input: VerifyItemInput) {
-    const [session] = await this.db
-      .select()
-      .from(auditSessions)
-      .where(and(eq(auditSessions.id, auditId), eq(auditSessions.workspaceId, ctx.workspaceId)))
-      .limit(1);
-    if (!session) {
-      throw httpCode(HttpStatus.NOT_FOUND, 'Audit session not found', 'AUDIT_NOT_FOUND');
-    }
-    if (session.status === 'closed') {
-      throw httpCode(
-        HttpStatus.CONFLICT,
-        'Audit session is closed and can no longer be modified',
-        'AUDIT_CLOSED',
-      );
-    }
-
-    // The item must belong to this audit; the asset must exist in the workspace.
-    const [item] = await this.db
-      .select({ id: auditItems.id, observation: auditItems.observation })
-      .from(auditItems)
-      .where(and(eq(auditItems.auditId, auditId), eq(auditItems.assetId, input.assetId)))
-      .limit(1);
-    if (!item) {
-      throw httpCode(HttpStatus.NOT_FOUND, 'Asset is not part of this audit scope', 'AUDIT_ITEM_NOT_FOUND');
-    }
-    if (input.observedLocationId) {
-      const [location] = await this.db
-        .select({ id: locations.id })
-        .from(locations)
-        .where(and(eq(locations.id, input.observedLocationId), eq(locations.workspaceId, ctx.workspaceId)))
-        .limit(1);
-      if (!location) {
-        throw httpCode(HttpStatus.NOT_FOUND, 'Location not found in this workspace', 'LOCATION_NOT_FOUND');
+    // Lock the audit session row for the whole verify so it is serialized
+    // against close(): once a close commits (flipping status to 'closed'), a
+    // concurrent or subsequent verify sees the closed session and is rejected —
+    // a closed audit can never accept a late observation.
+    return this.db.transaction(async (tx) => {
+      const [session] = await tx
+        .select({ status: auditSessions.status })
+        .from(auditSessions)
+        .where(and(eq(auditSessions.id, auditId), eq(auditSessions.workspaceId, ctx.workspaceId)))
+        .limit(1)
+        .for('update');
+      if (!session) {
+        throw httpCode(HttpStatus.NOT_FOUND, 'Audit session not found', 'AUDIT_NOT_FOUND');
       }
-    }
+      if (session.status === 'closed') {
+        throw httpCode(
+          HttpStatus.CONFLICT,
+          'Audit session is closed and can no longer be modified',
+          'AUDIT_CLOSED',
+        );
+      }
 
-    const [updated] = await this.db
-      .update(auditItems)
-      .set({
-        observation: input.observation,
-        observedLocationId: input.observedLocationId ?? null,
-        observedBy: actorId,
-        observedAt: new Date(),
-        notes: input.notes ?? null,
-      })
-      .where(eq(auditItems.id, item.id))
-      .returning();
-    // Immutable resolution history = the audit log trail (never rewritten).
-    await writeAuditLog(this.db, {
-      workspaceId: ctx.workspaceId,
-      actorId,
-      action: 'audit.item_verified',
-      resource: 'audit_item',
-      resourceId: item.id,
-      metadata: { auditId, assetId: input.assetId, from: item.observation, to: input.observation },
+      // The item must belong to this audit; the asset must exist in the workspace.
+      const [item] = await tx
+        .select({ id: auditItems.id, observation: auditItems.observation })
+        .from(auditItems)
+        .where(and(eq(auditItems.auditId, auditId), eq(auditItems.assetId, input.assetId)))
+        .limit(1);
+      if (!item) {
+        throw httpCode(HttpStatus.NOT_FOUND, 'Asset is not part of this audit scope', 'AUDIT_ITEM_NOT_FOUND');
+      }
+      if (input.observedLocationId) {
+        const [location] = await tx
+          .select({ id: locations.id })
+          .from(locations)
+          .where(and(eq(locations.id, input.observedLocationId), eq(locations.workspaceId, ctx.workspaceId)))
+          .limit(1);
+        if (!location) {
+          throw httpCode(HttpStatus.NOT_FOUND, 'Location not found in this workspace', 'LOCATION_NOT_FOUND');
+        }
+      }
+
+      const [updated] = await tx
+        .update(auditItems)
+        .set({
+          observation: input.observation,
+          observedLocationId: input.observedLocationId ?? null,
+          observedBy: actorId,
+          observedAt: new Date(),
+          notes: input.notes ?? null,
+        })
+        .where(eq(auditItems.id, item.id))
+        .returning();
+      // Immutable resolution history = the audit log trail (never rewritten).
+      await writeAuditLog(tx, {
+        workspaceId: ctx.workspaceId,
+        actorId,
+        action: 'audit.item_verified',
+        resource: 'audit_item',
+        resourceId: item.id,
+        metadata: { auditId, assetId: input.assetId, from: item.observation, to: input.observation },
+      });
+      return updated;
     });
-    return updated;
   }
 
   async close(ctx: WorkspaceContext, actorId: string, auditId: string, input: CloseAuditInput) {
@@ -188,7 +195,8 @@ export class AuditsService {
         .select()
         .from(auditSessions)
         .where(and(eq(auditSessions.id, auditId), eq(auditSessions.workspaceId, ctx.workspaceId)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (!session) {
         throw httpCode(HttpStatus.NOT_FOUND, 'Audit session not found', 'AUDIT_NOT_FOUND');
       }

@@ -26,6 +26,21 @@ class RecordingTransport implements EmailTransport {
   }
 }
 
+/** Succeeds for every recipient except those in `failing`. */
+class SelectiveFailTransport implements EmailTransport {
+  readonly kind = 'selective-fail';
+  readonly messages: MailMessage[] = [];
+  readonly failedTo: string[] = [];
+  constructor(private readonly failing: ReadonlySet<string>) {}
+  async send(message: MailMessage): Promise<void> {
+    if (this.failing.has(message.to)) {
+      this.failedTo.push(message.to);
+      throw new Error(`simulated SMTP failure for ${message.to}`);
+    }
+    this.messages.push(message);
+  }
+}
+
 const testConfig: AppConfig = loadConfig({
   NODE_ENV: 'test',
   PUBLIC_APP_URL: 'https://assets.example.com',
@@ -170,5 +185,46 @@ describe('preference-aware email delivery', () => {
     expect(second.emailSent).toBe(0);
     expect(second.emailSkipped).toBe(2);
     expect(transport.messages).toHaveLength(2); // no duplicates on the wire
+  });
+
+  it('throws on partial failure and retries only the failed recipient', async () => {
+    const { workspaceId } = await seedWorkspaceWithMembers();
+    const eventId = await insertOutboxEvent(workspaceId, 'asset.created');
+    const event = {
+      id: eventId,
+      workspaceId,
+      kind: 'asset.created',
+      aggregateId: crypto.randomUUID(),
+      payloadJson: { assetTag: 'MAIL-0001', schemaVersion: 1 },
+    };
+
+    // First pass: owner@mail.test fails, member@mail.test succeeds.
+    const failingTransport = new SelectiveFailTransport(new Set(['owner@mail.test']));
+    await expect(deliverOutboxEvent(db, event, failingTransport, testConfig)).rejects.toThrow(
+      /email delivery failed for 1 recipient\(s\)/,
+    );
+    expect(failingTransport.messages.map((m) => m.to)).toEqual(['member@mail.test']);
+
+    const rowsAfterFirst = await db.execute<{ recipient: string; status: string }>(
+      sql`select recipient, status from notification_deliveries where event_key = ${eventId} and channel = 'email'`,
+    );
+    const statusByRecipient = new Map(rowsAfterFirst.rows.map((r) => [r.recipient, r.status]));
+    expect(statusByRecipient.get('member@mail.test')).toBe('sent');
+    expect(statusByRecipient.get('owner@mail.test')).toBe('failed');
+
+    // Second pass: a working transport must send ONLY to the previously-failed
+    // recipient (the already-'sent' row is never re-claimed) and resolve.
+    const workingTransport = new RecordingTransport();
+    const retry = await deliverOutboxEvent(db, event, workingTransport, testConfig);
+    expect(workingTransport.messages.map((m) => m.to)).toEqual(['owner@mail.test']);
+    expect(retry.emailSent).toBe(1);
+    expect(retry.emailFailed).toBe(0);
+
+    const rowsAfterRetry = await db.execute<{ recipient: string; status: string }>(
+      sql`select recipient, status from notification_deliveries where event_key = ${eventId} and channel = 'email'`,
+    );
+    const finalStatus = new Map(rowsAfterRetry.rows.map((r) => [r.recipient, r.status]));
+    expect(finalStatus.get('owner@mail.test')).toBe('sent');
+    expect(finalStatus.get('member@mail.test')).toBe('sent');
   });
 });
