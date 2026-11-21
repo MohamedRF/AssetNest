@@ -58,8 +58,7 @@ curl -fsS http://localhost/api/v1/health/ready
   `curl -fsS http://localhost/api/v1/version`.
 - Check worker health/logs if `REDIS_URL` is set.
 - Confirm scheduled/backup jobs still point at the right retention.
-- Re-run the relevant e2e smoke (see `TESTING_QA.md`) on staging before
-  promoting to production.
+- Run the [installation smoke test](DEMO.md) on staging before promoting to production.
 
 ## 5. Rollback
 
@@ -88,4 +87,4 @@ migration.
 
 For each upgrade, record: source and target versions, backup path and restore
 drill result, migration output, post-upgrade health/version output, and the
-operator sign-off. See `docs/LAUNCH_CHECKLIST.md`.
+operator sign-off. See the [release process](RELEASE.md#6-release-evidence).

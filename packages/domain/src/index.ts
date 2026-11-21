@@ -93,8 +93,7 @@ export const ROLE_PERMISSIONS: Readonly<Record<WorkspaceRole, readonly Permissio
     'ai:use',
   ],
   member: ['assets:read', 'documents:read'],
-  // Auditor: read-only across assets/documents, manages physical audits and
-  // (per SECURITY_PRIVACY.md "audit and read-only scope") may read the audit trail.
+  // Auditors can manage physical audits and read the audit trail.
   auditor: ['assets:read', 'documents:read', 'audits:manage', 'reports:read', 'audit:read', 'approvals:read'],
 };
 

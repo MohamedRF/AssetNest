@@ -79,16 +79,15 @@ pnpm sdk:check
 
 ## Optional AI provider configuration
 
-Set `AI_ENABLED=true` to configure AI. A workspace administrator can add provider connections, verify model capabilities, and choose models, timeouts, budgets, and fallback routes by task. Adapters support OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, and local Ollama. A gateway such as LiteLLM is optional. Connection credentials are encrypted, and inputs sent to a configured provider depend on the selected task and its consent requirements. [AI configuration and workflows](AI_ECOSYSTEM.md) · [Provider verification matrix](docs/architecture/ai-compatibility-matrix.md)
+Set `AI_ENABLED=true` to configure AI. A workspace administrator can add provider connections, verify model capabilities, and choose models, timeouts, budgets, and fallback routes by task. Adapters support OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, and local Ollama. Connection credentials are encrypted, and inputs sent to a configured provider depend on the selected task and its consent requirements. [AI endpoint settings](DEPLOYMENT_OPERATIONS.md#ai-endpoints-in-self-hosted-networks) · [Optional LiteLLM setup](examples/README.md#optional-litellm-gateway)
 
 ## Security and operations
 
-- **Access and retention.** The server enforces workspace permissions on requests and automation. Audit retention defaults to indefinite and pruning is an explicit administrator action. Export availability and expiry can be configured per workspace. [Security and privacy model](SECURITY_PRIVACY.md)
+- **Access and retention.** The server enforces workspace permissions on requests and automation. Audit retention defaults to indefinite and pruning is an explicit administrator action. Export availability and expiry can be configured per workspace. [Security policy](SECURITY.md)
 - **Backups and upgrades.** Keep matching database and private-file backups, preserve the encryption key separately, and run a restore drill before relying on backups. Apply migrations before starting upgraded services. [Operations runbook](DEPLOYMENT_OPERATIONS.md) · [Upgrade and rollback guide](docs/UPGRADE.md)
-- **Verification and releases.** The test suite covers workspace isolation, API contracts, lifecycle workflows, and failure handling. A disposable-stack demo covers bootstrap, inventory, and CSV export. [Testing guide](TESTING_QA.md) · [Demo](docs/DEMO.md) · [Release process](docs/RELEASE.md) · [Launch checklist](docs/LAUNCH_CHECKLIST.md)
+- **Verification and releases.** The test suite covers workspace isolation, API contracts, lifecycle workflows, and failure handling. A disposable-stack demo covers bootstrap, inventory, and CSV export. [Test commands](CONTRIBUTING.md#before-opening-a-pull-request) · [Demo](docs/DEMO.md) · [Release process](docs/RELEASE.md)
 
 ## Project information
 
-- [Product requirements](PRODUCT_REQUIREMENTS.md), [architecture](ARCHITECTURE.md), [database design](DATABASE_DESIGN.md), and [design decisions](DECISIONS.md)
-- [Changelog](CHANGELOG.md), [roadmap](ROADMAP.md), and [task evidence](TASKS.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md) and [private security reporting](SECURITY.md)

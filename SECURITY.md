@@ -64,9 +64,8 @@ Out of scope:
 
 ## Hardening references
 
-- `SECURITY_PRIVACY.md` — threat model and controls.
-- `TESTING_QA.md` — security/quality gates and commands.
-- `DEPLOYMENT_OPERATIONS.md` — secure deployment, backup and OIDC guidance.
+- [Deployment and operations](DEPLOYMENT_OPERATIONS.md) covers backups, deployment settings, and OIDC.
+- [Contributor checks](CONTRIBUTING.md#before-opening-a-pull-request) lists test and verification commands.
 
 ## Safe harbor
 

@@ -61,7 +61,7 @@ Never edit an applied migration; fix forward with a new one.
 - Keep commits focused; use `type: short summary` (e.g. `fix: …`, `feat: …`).
 - Describe what changed, why, and how you verified it.
 - Include the exact commands you ran and their results.
-- Link the task ID (e.g. `P6-01`) and any relevant issue.
+- Link relevant issues or task IDs when available.
 - Do not include generated artifacts, `.env`, or real data.
 
 ## Review

@@ -52,7 +52,7 @@ Activate the workflow and use its Production URL in the AssetNest webhook subscr
 
 For the health digest, set your deployment URL and workspace UUID in both HTTP nodes. Create a Header Auth credential with `Authorization` set to `Bearer <token>` and attach it to both nodes. The token needs only `assets:read`. Run the workflow manually before enabling the schedule and notification node.
 
-## Optional: LiteLLM gateway (P5-11)
+## Optional LiteLLM gateway
 
 LiteLLM is an **optional, independent** gateway that fans AssetNest's
 OpenAI-compatible connection out to many upstream providers with budgets,

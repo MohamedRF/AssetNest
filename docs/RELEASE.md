@@ -97,9 +97,10 @@ for private registries and offline verification.
    restoring the matching private files.
 3. Record the deployed image digests and confirm readiness before resuming traffic.
 
-## 6. Status in this repository
+## 6. Release evidence
 
-The workflow is committed and statically reviewed. It has **not** been executed
-here (no GitHub runner, registry or OIDC environment). Before the first public
-release, run it against a private GHCR namespace and record the run URL, image
-digests and `cosign verify` output as release evidence.
+Before announcing a release, capture the workflow run URL, image digests, SBOMs
+and signature and provenance verification output. Record the staging install,
+upgrade and restore results and the health and version checks. Verify any
+enabled OIDC, AI, SMTP, webhook or MCP integration on the target configuration
+and record operator sign-off.

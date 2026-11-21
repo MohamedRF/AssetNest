@@ -120,5 +120,4 @@ Run both scripts against the release candidate and capture:
 - the demo transcript,
 - the target version/commit and database engine.
 
-Attach them to the release notes and the launch checklist
-(`docs/LAUNCH_CHECKLIST.md`). Do not record a pass from an unrun command.
+Attach them to the release notes alongside the [release evidence](RELEASE.md#6-release-evidence).

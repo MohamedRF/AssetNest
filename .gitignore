@@ -1,5 +1,19 @@
-# Local / private scratch notes stay out of Git; project specs, install guides
-# and verification evidence are tracked (no blanket *.md ignore).
+# Local planning, implementation notes, and agent instructions
+/AGENTS.md
+/AI_ECOSYSTEM.md
+/ARCHITECTURE.md
+/DATABASE_DESIGN.md
+/DECISIONS.md
+/PRODUCT_REQUIREMENTS.md
+/ROADMAP.md
+/SECURITY_PRIVACY.md
+/SUBAGENTS.md
+/TASKS.md
+/TESTING_QA.md
+/UX_UI_SPEC.md
+/apps/api/README.md
+/docs/LAUNCH_CHECKLIST.md
+/docs/architecture/
 *.local.md
 *.private.md
 

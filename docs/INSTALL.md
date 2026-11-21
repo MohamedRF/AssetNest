@@ -1,8 +1,8 @@
 # Install AssetNest
 
 AssetNest is a self-hostable, web-only asset manager. This guide covers the
-supported installation paths. For a conceptual overview see `ARCHITECTURE.md`;
-for production operations see `DEPLOYMENT_OPERATIONS.md`.
+supported installation paths. See the [operations guide](../DEPLOYMENT_OPERATIONS.md)
+for production configuration and maintenance.
 
 ## Prerequisites
 
@@ -153,7 +153,7 @@ curl -fsS http://localhost/api/v1/health/ready    # readiness (DB reachable)
 
 From the repo root, `pnpm ops:load-test` runs a small read-only load probe
 against a running stack. For a reproducible end-to-end install check, see
-`docs/DEMO.md` and `docs/LAUNCH_CHECKLIST.md`.
+the [installation smoke test](DEMO.md).
 
 ## Troubleshooting
 
