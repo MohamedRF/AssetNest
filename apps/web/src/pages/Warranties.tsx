@@ -116,7 +116,6 @@ export function Warranties() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        demo={false}
         title="Warranties"
         description="Warranty coverage by asset — never let a claim lapse because nobody remembered the date."
         actions={
@@ -142,10 +141,10 @@ export function Warranties() {
           role="alert"
           className="rounded-xl border border-danger/40 bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
         >
-          Could not load warranties. Is the API running?
+          Could not load warranties. Try again in a moment.
         </p>
       )}
-      {!warrantiesQuery.isLoading && warranties.length === 0 && (
+      {warrantiesQuery.isSuccess && warranties.length === 0 && (
         <EmptyState
           icon={ShieldCheck}
           title="No warranties recorded"

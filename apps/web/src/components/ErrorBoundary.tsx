@@ -7,7 +7,6 @@ interface ErrorBoundaryProps {
 
 interface ErrorBoundaryState {
   hasError: boolean;
-  message: string | null;
 }
 
 /**
@@ -15,13 +14,10 @@ interface ErrorBoundaryState {
  * shows a calm fallback — never a blank screen.
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  override state: ErrorBoundaryState = { hasError: false, message: null };
+  override state: ErrorBoundaryState = { hasError: false };
 
-  static getDerivedStateFromError(error: unknown): ErrorBoundaryState {
-    return {
-      hasError: true,
-      message: error instanceof Error ? error.message : 'Unknown error',
-    };
+  static getDerivedStateFromError(): ErrorBoundaryState {
+    return { hasError: true };
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo): void {
@@ -45,14 +41,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         </span>
         <h1 className="text-xl font-semibold tracking-tight">Something went wrong</h1>
         <p className="max-w-md text-sm leading-6 text-muted-foreground">
-          AssetNest hit an unexpected error. Reloading usually fixes it — if it keeps happening, contact your
-          workspace administrator.
+          Reload AssetNest to try again. If the problem continues, contact your workspace administrator.
         </p>
-        {this.state.message !== null && (
-          <p className="max-w-md rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-            {this.state.message}
-          </p>
-        )}
         <button
           type="button"
           onClick={this.handleReload}

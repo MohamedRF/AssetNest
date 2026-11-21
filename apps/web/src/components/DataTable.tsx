@@ -20,7 +20,7 @@ export interface DataTableProps<T> {
 
 /**
  * Accessible table shell. Sorting, pagination and row interactions land
- * with the API-backed asset list (Phase 1).
+ * with the asset list.
  */
 export function DataTable<T extends object>({
   caption,

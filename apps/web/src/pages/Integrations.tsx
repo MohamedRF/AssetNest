@@ -27,12 +27,11 @@ export function Integrations() {
       <div className="flex flex-col">
         <PageHeader
           title="Integrations"
-          demo={false}
           description="API tokens and signed webhooks for connecting AssetNest to the rest of your stack."
         />
         <EmptyState
           icon={KeyRound}
-          title="You need the integrations:manage permission"
+          title="Integration access required"
           description="Only workspace owners and admins can create API tokens or webhook subscriptions. Ask a workspace admin if you believe you need access."
         />
       </div>
@@ -41,11 +40,7 @@ export function Integrations() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Integrations"
-        demo={false}
-        description="Scoped API tokens and signed outbound webhooks. Secrets are shown once and stored hashed/encrypted; every action is audit-logged."
-      />
+      <PageHeader title="Integrations" description="Manage workspace API tokens and signed webhooks." />
       <WebhooksSection workspaceId={workspace.id} />
       <ApiTokensSection workspaceId={workspace.id} />
     </div>

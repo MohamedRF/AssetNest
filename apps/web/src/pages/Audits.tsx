@@ -13,14 +13,7 @@ import { Dialog } from '../components/ui/dialog';
 import { api, isApiError } from '../lib/api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 import { useToast } from '../components/ui/toast';
-
-interface AuditRow {
-  id: string;
-  label: string;
-  status: 'open' | 'closed';
-  openedAt: string;
-  closedAt: string | null;
-}
+import { useAuditList } from '../hooks/useAuditList';
 
 interface LocationRow {
   id: string;
@@ -33,22 +26,12 @@ export function Audits() {
   const queryClient = useQueryClient();
   const { workspace } = useSelectedWorkspace();
   const workspaceId = workspace?.id;
-  const canManage =
-    workspace?.role === 'owner' ||
-    workspace?.role === 'admin' ||
-    workspace?.role === 'manager' ||
-    workspace?.role === 'auditor';
+  const { canManageAudits: canManage, query: auditsQuery } = useAuditList(workspaceId, workspace?.role);
 
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [locationId, setLocationId] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  const auditsQuery = useQuery({
-    queryKey: ['audits', workspaceId],
-    enabled: workspaceId !== undefined,
-    queryFn: () => api.get<{ audits: AuditRow[] }>(`/workspaces/${workspaceId}/audits`),
-  });
 
   const locationsQuery = useQuery({
     queryKey: ['locations', workspaceId],
@@ -91,21 +74,28 @@ export function Audits() {
     );
   }
 
+  if (!canManage) {
+    return (
+      <EmptyState
+        icon={ClipboardCheck}
+        title="Audit access required"
+        description="Ask a workspace owner or admin for access to physical inventory audits."
+      />
+    );
+  }
+
   const audits = auditsQuery.data?.audits ?? [];
 
   return (
     <div className="flex flex-col">
       <PageHeader
-        demo={false}
         title="Audits"
-        description="Physical inventory counts against the registry. Snapshot the scope at open, verify as you walk, close with a permanent record."
+        description="Compare a physical inventory count with your asset records."
         actions={
-          canManage ? (
-            <Button onClick={() => setOpen(true)}>
-              <Plus aria-hidden="true" className="h-4 w-4" />
-              New audit
-            </Button>
-          ) : undefined
+          <Button onClick={() => setOpen(true)}>
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            New audit
+          </Button>
         }
       />
 
@@ -122,16 +112,16 @@ export function Audits() {
           role="alert"
           className="rounded-xl border border-danger/40 bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
         >
-          Could not load audits. Is the API running?
+          Could not load audits. Try again in a moment.
         </p>
       )}
-      {!auditsQuery.isLoading && audits.length === 0 && (
+      {auditsQuery.isSuccess && audits.length === 0 && (
         <EmptyState
           icon={ClipboardCheck}
           title="No audits yet"
-          description="Open a location- or category-scoped audit — it snapshots every in-scope asset so discrepancies are explicit."
-          actionLabel={canManage ? 'Open first audit' : undefined}
-          onAction={canManage ? () => setOpen(true) : undefined}
+          description="Start with one location or count every asset in the workspace."
+          actionLabel="Open first audit"
+          onAction={() => setOpen(true)}
         />
       )}
       {audits.length > 0 && (

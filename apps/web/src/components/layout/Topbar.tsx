@@ -1,5 +1,4 @@
 import {
-  Bell,
   Building2,
   Check,
   ChevronDown,
@@ -56,33 +55,42 @@ function WorkspaceSwitcher() {
     );
   }
 
+  const workspaceLabel = (
+    <>
+      {active.mode === 'home' ? (
+        <Home aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
+      ) : (
+        <Building2 aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
+      )}
+      <span className="hidden flex-col items-start leading-tight sm:flex">
+        <span className="max-w-[10rem] truncate">{active.name}</span>
+        <span className="text-[11px] font-normal capitalize text-muted-foreground">
+          {active.mode} mode · {active.role}
+        </span>
+      </span>
+    </>
+  );
+  const workspaceClass = 'flex h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground';
+
+  if (workspaces.length <= 1) {
+    return <div className={workspaceClass}>{workspaceLabel}</div>;
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
-        onClick={() => workspaces.length > 1 && setOpen((value) => !value)}
-        aria-haspopup={workspaces.length > 1 ? 'menu' : undefined}
-        aria-expanded={workspaces.length > 1 ? open : undefined}
-        aria-label={`Workspace: ${active.name} (${active.mode} mode)${workspaces.length > 1 ? '. Switch workspace.' : ''}`}
-        className="flex h-10 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground hover:bg-muted"
+        onClick={() => setOpen((value) => !value)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Switch workspace. Current workspace: ${active.name}`}
+        className={`${workspaceClass} hover:bg-muted`}
       >
-        {active.mode === 'home' ? (
-          <Home aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
-        ) : (
-          <Building2 aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
-        )}
-        <span className="hidden flex-col items-start leading-tight sm:flex">
-          <span className="max-w-[10rem] truncate">{active.name}</span>
-          <span className="text-[11px] font-normal capitalize text-muted-foreground">
-            {active.mode} mode · {active.role}
-          </span>
-        </span>
-        {workspaces.length > 1 && (
-          <ChevronsUpDown aria-hidden="true" className="hidden h-4 w-4 text-muted-foreground sm:block" />
-        )}
+        {workspaceLabel}
+        <ChevronsUpDown aria-hidden="true" className="hidden h-4 w-4 text-muted-foreground sm:block" />
       </button>
 
-      {open && workspaces.length > 1 && (
+      {open && (
         <div
           role="menu"
           aria-label="Choose workspace"
@@ -118,10 +126,6 @@ function WorkspaceSwitcher() {
               )}
             </button>
           ))}
-          <p className="border-t border-border px-3 pb-1.5 pt-2 text-[11px] leading-4 text-muted-foreground">
-            Workspace switching is a UI preference. The server authorizes every request against your
-            membership.
-          </p>
         </div>
       )}
     </div>
@@ -186,59 +190,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
-
-/** Reminders bell with an empty badge. Real alerts arrive with Phase 1. */
-function RemindersBell() {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-label="Reminders — 0 due"
-        className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <Bell aria-hidden="true" className="h-5 w-5" />
-        <span
-          aria-hidden="true"
-          className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold leading-none text-accent-foreground"
-        >
-          0
-        </span>
-      </button>
-      {open && (
-        <div
-          role="status"
-          className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-border bg-surface p-4 shadow-lg"
-        >
-          <p className="text-sm font-semibold text-foreground">You are all caught up</p>
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">
-            Reminders for maintenance and warranty due dates appear here once scheduling ships (Phase 1).
-          </p>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function initialsOf(name: string): string {
@@ -341,6 +292,9 @@ export interface TopbarProps {
 }
 
 export function Topbar({ onOpenDrawer }: TopbarProps) {
+  const { workspace } = useSelectedWorkspace();
+  const canCreateAsset = ['owner', 'admin', 'manager'].includes(workspace?.role ?? '');
+
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-border bg-background/90 px-3 backdrop-blur-sm sm:gap-3 sm:px-4">
       <button
@@ -356,16 +310,17 @@ export function Topbar({ onOpenDrawer }: TopbarProps) {
       <GlobalSearch />
 
       <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-        <Link
-          to="/assets/new"
-          aria-label="Quick add — new asset"
-          title="New asset"
-          className="flex h-10 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-foreground shadow-sm hover:bg-accent-hover sm:px-3.5"
-        >
-          <Plus aria-hidden="true" className="h-5 w-5" />
-          <span className="hidden sm:inline">New asset</span>
-        </Link>
-        <RemindersBell />
+        {canCreateAsset && (
+          <Link
+            to="/assets/new"
+            aria-label="Quick add — new asset"
+            title="New asset"
+            className="flex h-10 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-foreground shadow-sm hover:bg-accent-hover sm:px-3.5"
+          >
+            <Plus aria-hidden="true" className="h-5 w-5" />
+            <span className="hidden sm:inline">New asset</span>
+          </Link>
+        )}
         <UserMenu />
       </div>
     </header>

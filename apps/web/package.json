@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "AssetNest web app — self-hostable, web-only asset management (UI shell; API lands in Phase 1).",
+  "description": "AssetNest web app for self-hosted equipment and inventory management.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

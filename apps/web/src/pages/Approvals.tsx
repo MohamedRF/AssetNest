@@ -362,7 +362,6 @@ export function Approvals() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        demo={false}
         title="Approvals"
         description="Route sensitive actions through configurable approval rules. Owners and admins define rules; eligible approvers decide."
       />
@@ -371,7 +370,7 @@ export function Approvals() {
       ) : rulesQuery.isError ? (
         <p role="alert">Could not load approval rules.</p>
       ) : rulesQuery.isPending ? (
-        <p role="status">Loading approval rules�</p>
+        <p role="status">Loading approval rules…</p>
       ) : canManage ? (
         <RuleEditor key={workspaceId} rules={rules} workspaceId={workspaceId} />
       ) : (
@@ -403,7 +402,7 @@ export function Approvals() {
         (requestsQuery.isError ? (
           <p role="alert">Could not load approval requests.</p>
         ) : requestsQuery.isPending ? (
-          <p role="status">Loading approval requests�</p>
+          <p role="status">Loading approval requests…</p>
         ) : (
           <RequestsCard
             key={workspaceId}

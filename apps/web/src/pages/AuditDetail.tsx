@@ -11,6 +11,7 @@ import { EmptyState } from '../components/EmptyState';
 import { useToast } from '../components/ui/toast';
 import { api, isApiError } from '../lib/api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
+import { canAccessAuditSessions } from '../hooks/useAuditList';
 
 interface AuditItem {
   id: string;
@@ -56,11 +57,12 @@ export function AuditDetailPage() {
   const queryClient = useQueryClient();
   const { workspace } = useSelectedWorkspace();
   const workspaceId = workspace?.id;
+  const canManage = canAccessAuditSessions(workspace?.role);
   const [closeOpen, setCloseOpen] = useState(false);
 
   const auditQuery = useQuery({
     queryKey: ['audit', workspaceId, auditId],
-    enabled: workspaceId !== undefined && auditId !== undefined,
+    enabled: canManage && workspaceId !== undefined && auditId !== undefined,
     queryFn: () => api.get<AuditDetail>(`/workspaces/${workspaceId}/audits/${auditId}`),
   });
 
@@ -87,7 +89,7 @@ export function AuditDetailPage() {
   const close = useMutation({
     mutationFn: () => api.post(`/workspaces/${workspaceId}/audits/${auditId}/close`, {}),
     onSuccess: () => {
-      toast({ title: 'Audit closed — record is now immutable', variant: 'success' });
+      toast({ title: 'Audit closed', variant: 'success' });
       void queryClient.invalidateQueries({ queryKey: ['audit', workspaceId, auditId] });
       void queryClient.invalidateQueries({ queryKey: ['audits', workspaceId] });
     },
@@ -111,8 +113,19 @@ export function AuditDetailPage() {
     );
   }
 
+  if (!canManage) {
+    return (
+      <EmptyState
+        icon={ClipboardCheck}
+        title="Audit access required"
+        description="Ask a workspace owner or admin for access to physical inventory audits."
+      />
+    );
+  }
+
   const audit = auditQuery.data;
   const isOpen = audit?.status === 'open';
+  const isMissing = isApiError(auditQuery.error) && auditQuery.error.status === 404;
 
   return (
     <div className="flex flex-col gap-4">
@@ -135,8 +148,10 @@ export function AuditDetailPage() {
       {auditQuery.isError && (
         <EmptyState
           icon={ClipboardCheck}
-          title="Audit not found"
-          description="It may have been removed or belong to another workspace."
+          title={isMissing ? 'Audit not found' : 'Could not load audit'}
+          description={
+            isMissing ? 'Check that the link belongs to your active workspace.' : 'Try again in a moment.'
+          }
           actionLabel="Back to audits"
           actionHref="/audits"
         />
@@ -145,7 +160,6 @@ export function AuditDetailPage() {
       {audit && (
         <>
           <PageHeader
-            demo={false}
             title={audit.label}
             description={`Opened ${new Date(audit.openedAt).toLocaleDateString()}${audit.closedAt ? ` · closed ${new Date(audit.closedAt).toLocaleDateString()}` : ''}`}
             actions={
@@ -271,7 +285,7 @@ export function AuditDetailPage() {
               onClose={() => setCloseOpen(false)}
               onConfirm={() => close.mutate()}
               title="Close this audit?"
-              description="The audit becomes immutable: no further observations can be recorded. The outcome summary is written to history and the audit-closed event is emitted."
+              description="Closing finalizes the count and saves the results to audit history."
               confirmLabel="Close audit"
               tone="danger"
             />

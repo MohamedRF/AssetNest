@@ -3,48 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { assetsApi } from '../lib/assets-api';
 import { useSelectedWorkspace } from '../lib/use-selected-workspace';
+import { useAuditList } from './useAuditList';
 
-export interface DashboardStats {
-  totalAssets: number;
-  warrantyDue: number;
-  maintenanceOverdue: number;
-  openAudits: number;
-}
-
-export interface ActivityEntry {
-  id: string;
-  action: string;
-  resource: string;
-  occurredAt: string;
-}
-
-export interface DashboardData {
-  stats: DashboardStats;
-  recentActivity: ReadonlyArray<ActivityEntry>;
-  canSeeAuditLog: boolean;
-  /** True while any stat is still a placeholder (API unreachable or error). */
-  isPlaceholder: boolean;
-}
-
-const PLACEHOLDER_STATS: DashboardStats = {
-  totalAssets: 0,
-  warrantyDue: 0,
-  maintenanceOverdue: 0,
-  openAudits: 0,
-};
-
-interface WarrantyList {
-  warranties: Array<{ id: string; derivedStatus: string }>;
-}
-interface PlanList {
-  plans: Array<{ id: string; dueState: string }>;
-}
-/**
- * Live operational summary. `openAudits` stays a fixed honest zero until
- * Phase 3 ships audits. Recent activity reads the workspace audit log
- * (owner/admin/auditor only — regular members get a polite empty note).
- */
-export function useDashboard(): DashboardData {
+export function useDashboard() {
   const { workspace } = useSelectedWorkspace();
   const workspaceId = workspace?.id;
   const canSeeAuditLog =
@@ -60,14 +21,16 @@ export function useDashboard(): DashboardData {
   const warrantiesQuery = useQuery({
     queryKey: ['dashboard-warranties-due', workspaceId],
     enabled: workspaceId !== undefined,
-    queryFn: () => api.get<WarrantyList>(`/workspaces/${workspaceId}/warranties?expiringDays=90`),
+    queryFn: () =>
+      api.get<OperationResult<'listWarranties'>>(`/workspaces/${workspaceId}/warranties?expiringDays=90`),
     staleTime: 60_000,
   });
 
   const plansQuery = useQuery({
     queryKey: ['dashboard-maintenance-overdue', workspaceId],
     enabled: workspaceId !== undefined,
-    queryFn: () => api.get<PlanList>(`/workspaces/${workspaceId}/maintenance/plans`),
+    queryFn: () =>
+      api.get<OperationResult<'listMaintenancePlans'>>(`/workspaces/${workspaceId}/maintenance/plans`),
     staleTime: 60_000,
   });
 
@@ -79,18 +42,23 @@ export function useDashboard(): DashboardData {
     staleTime: 15_000,
   });
 
-  const stats: DashboardStats = {
-    totalAssets: assetsQuery.data?.total ?? PLACEHOLDER_STATS.totalAssets,
-    warrantyDue: warrantiesQuery.data?.warranties.length ?? PLACEHOLDER_STATS.warrantyDue,
-    maintenanceOverdue:
-      plansQuery.data?.plans.filter((plan) => plan.dueState === 'overdue').length ??
-      PLACEHOLDER_STATS.maintenanceOverdue,
-    openAudits: 0,
+  const { canManageAudits, query: auditsQuery } = useAuditList(workspaceId, workspace?.role);
+
+  return {
+    hasWorkspace: workspaceId !== undefined,
+    canManageAudits,
+    canSeeAuditLog,
+    activityQuery,
+    statsError:
+      assetsQuery.isError ||
+      warrantiesQuery.isError ||
+      plansQuery.isError ||
+      (canManageAudits && auditsQuery.isError),
+    stats: {
+      totalAssets: assetsQuery.data?.total,
+      warrantyDue: warrantiesQuery.data?.warranties.length,
+      maintenanceOverdue: plansQuery.data?.plans.filter((plan) => plan.dueState === 'overdue').length,
+      openAudits: auditsQuery.data?.audits.filter((audit) => audit.status === 'open').length,
+    },
   };
-
-  const isPlaceholder = assetsQuery.isError && warrantiesQuery.isError && plansQuery.isError;
-
-  const recentActivity = activityQuery.data?.entries ?? [];
-
-  return { stats, recentActivity, canSeeAuditLog, isPlaceholder };
 }

@@ -115,6 +115,9 @@ describe('api client', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(502);
     expect((error as ApiError).code).toBe('http_502');
+    expect((error as ApiError).detail).toBe(
+      'AssetNest could not complete the request. Try again in a moment.',
+    );
   });
 
   it('maps network failures to a status-0 network_error', async () => {

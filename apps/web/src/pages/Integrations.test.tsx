@@ -117,6 +117,6 @@ describe('Integrations', () => {
       selectWorkspace: vi.fn(),
     });
     renderPage();
-    expect(await screen.findByText(/integrations:manage/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Integration access required' })).toBeInTheDocument();
   });
 });

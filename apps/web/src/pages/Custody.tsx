@@ -48,7 +48,6 @@ export function Custody() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        demo={false}
         title="Custody"
         description="Who holds what right now. Assign, return and transfer assets from an asset's detail page; history is immutable."
       />
@@ -66,10 +65,10 @@ export function Custody() {
           role="alert"
           className="rounded-xl border border-danger/40 bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
         >
-          Could not load custody. Is the API running?
+          Could not load custody. Try again in a moment.
         </p>
       )}
-      {!custodyQuery.isLoading && assignments.length === 0 && (
+      {custodyQuery.isSuccess && assignments.length === 0 && (
         <EmptyState
           icon={UsersRound}
           title="Nothing assigned right now"

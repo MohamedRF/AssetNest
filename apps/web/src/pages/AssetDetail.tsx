@@ -66,7 +66,7 @@ export function AssetDetailPage() {
       <EmptyState
         icon={QrCode}
         title="Missing asset"
-        description="No asset id in the URL."
+        description="Open an asset from the inventory to see its details."
         actionLabel="Back to assets"
         actionHref="/assets"
       />
@@ -74,6 +74,7 @@ export function AssetDetailPage() {
   }
 
   const asset = assetQuery.data;
+  const isMissing = isApiError(assetQuery.error) && assetQuery.error.status === 404;
   const qrUrl = asset ? `${getApiBaseUrl()}/workspaces/${workspaceId}/assets/${asset.id}/qr` : undefined;
 
   const label = (event: HistoryEvent): string => {
@@ -87,7 +88,7 @@ export function AssetDetailPage() {
       case 'asset.archived':
         return 'Asset archived';
       default:
-        return event.action;
+        return event.action.replace(/^asset\./, '').replace(/[._]/g, ' ');
     }
   };
 
@@ -113,8 +114,10 @@ export function AssetDetailPage() {
       {assetQuery.isError && (
         <EmptyState
           icon={QrCode}
-          title="Asset not found"
-          description="It may have been removed, or the link points at a different workspace."
+          title={isMissing ? 'Asset not found' : 'Could not load asset'}
+          description={
+            isMissing ? 'Check that the link belongs to your active workspace.' : 'Try again in a moment.'
+          }
           actionLabel="Back to assets"
           actionHref="/assets"
         />
@@ -123,7 +126,6 @@ export function AssetDetailPage() {
       {asset && (
         <>
           <PageHeader
-            demo={false}
             title={asset.displayName}
             description={asset.assetTag}
             actions={
@@ -234,8 +236,8 @@ export function AssetDetailPage() {
                   />
                 )}
                 <p className="text-center text-xs leading-5 text-muted-foreground">
-                  Scan with the AssetNest app or paste <span className="font-mono">{asset.id}</span> into the
-                  asset finder. The code never contains serials or personal data.
+                  Use a QR scanner, or paste <span className="font-mono">{asset.id}</span> into the asset
+                  finder.
                 </p>
               </CardContent>
             </Card>
@@ -261,18 +263,18 @@ export function AssetDetailPage() {
             </CardHeader>
             <CardContent>
               {historyQuery.isLoading && <p className="text-sm text-muted-foreground">Loading history…</p>}
+              {historyQuery.isError && (
+                <p role="alert" className="text-sm text-danger">
+                  Could not load asset history.
+                </p>
+              )}
               {historyQuery.data && historyQuery.data.events.length === 0 && (
                 <p className="text-sm text-muted-foreground">No events recorded yet.</p>
               )}
               <ol className="flex flex-col divide-y divide-border">
                 {(historyQuery.data?.events ?? []).map((event) => (
                   <li key={event.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
-                    <div>
-                      <p className="text-sm font-medium">{label(event)}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground">
-                        correlation: {event.correlationId}
-                      </p>
-                    </div>
+                    <p className="text-sm font-medium">{label(event)}</p>
                     <time className="text-xs text-muted-foreground" dateTime={event.occurredAt}>
                       {new Date(event.occurredAt).toLocaleString()}
                     </time>
@@ -287,7 +289,7 @@ export function AssetDetailPage() {
             onClose={() => setArchiveOpen(false)}
             onConfirm={() => archive.mutate()}
             title={`Archive ${asset.displayName}?`}
-            description="Archived assets leave normal search but keep their history and documents. You can restore by transitioning status later if needed."
+            description="Archiving permanently removes this asset from your active inventory."
             confirmLabel="Archive asset"
             tone="danger"
           />

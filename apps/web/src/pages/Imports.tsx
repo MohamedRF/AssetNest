@@ -154,7 +154,6 @@ export function Imports() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        demo={false}
         title="Import assets"
         description="Upload a CSV, map its columns onto AssetNest fields, validate — nothing is written until you press Import. Every row gets a verdict; nothing fails silently."
       />

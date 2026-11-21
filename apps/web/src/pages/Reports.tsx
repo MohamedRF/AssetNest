@@ -21,20 +21,19 @@ const REPORTS: ReadonlyArray<{
   {
     kind: 'assets',
     title: 'Asset register',
-    description:
-      'Tag, name, serial, status, condition, purchase, location, category, tags — everything with its workspace scoped.',
+    description: 'Asset tags, serial numbers, status, condition, locations, and purchase details.',
     icon: FileSpreadsheet,
   },
   {
     kind: 'warranties',
     title: 'Warranty coverage',
-    description: 'Provider, start and expiry dates with a derived expired/active flag, ordered by expiry.',
+    description: 'Warranty providers, coverage dates, and expiry status.',
     icon: ShieldCheck,
   },
   {
     kind: 'maintenance',
     title: 'Maintenance records',
-    description: 'Service history with vendor, cost and currency — feeds your accountant at tax time.',
+    description: 'Service history with vendor, cost, and currency.',
     icon: Wrench,
   },
 ];
@@ -66,7 +65,7 @@ export function Reports() {
     mutationFn: (report: ReportKind) =>
       api.post<OperationResult<'createExport'>>(`/workspaces/${workspaceId}/exports`, { report }),
     onSuccess: async (created) => {
-      toast({ title: 'Report generated', description: 'Download started below.', variant: 'success' });
+      toast({ title: 'Report generated', description: 'Your download has started.', variant: 'success' });
       void queryClient.invalidateQueries({ queryKey: ['exports', workspaceId] });
       // Trigger the download immediately for convenience.
       const anchor = document.createElement('a');
@@ -99,11 +98,7 @@ export function Reports() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader
-        demo={false}
-        title="Reports"
-        description="Generate workspace-scoped CSV exports. Everything below is generated from live data and downloads immediately."
-      />
+      <PageHeader title="Reports" description="Generate and download CSV reports for this workspace." />
 
       {!canRead ? (
         <p className="rounded-xl border border-warning/40 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
@@ -112,7 +107,7 @@ export function Reports() {
       ) : exportsQuery.isError ? (
         <p role="alert">Could not load the workspace export policy.</p>
       ) : exportsQuery.isPending ? (
-        <p role="status">Loading the workspace export policy�</p>
+        <p role="status">Loading the workspace export policy…</p>
       ) : !exportsEnabled ? (
         <p className="rounded-xl border border-warning/40 bg-warning-subtle p-4 text-sm text-warning-subtle-foreground">
           Exports are turned off by this workspace’s export policy. An owner or admin can re-enable them in
@@ -149,38 +144,31 @@ export function Reports() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Recent exports</CardTitle>
-          <CardDescription>
-            Most recent first — files are private to this workspace.
-            {exportMaxAgeDays !== null
-              ? ` Files older than ${exportMaxAgeDays} day${exportMaxAgeDays === 1 ? '' : 's'} are hidden and cannot be downloaded.`
-              : ''}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!canRead ? (
-            <p className="text-sm text-muted-foreground">
-              Export history is available to auditors, managers, admins and owners.
-            </p>
-          ) : (
-            <>
-              {exportsQuery.isLoading && <p className="text-sm text-muted-foreground">Loading exports…</p>}
-              {!exportsQuery.isLoading && exports.length === 0 && (
-                <p className="text-sm text-muted-foreground">No exports yet. Generate one above.</p>
-              )}
-              <ul className="flex flex-col divide-y divide-border">
-                {exports.map((row) => (
-                  <li key={row.id} className="flex flex-wrap items-center gap-3 py-2.5">
-                    <FileSpreadsheet aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      {row.report} —{' '}
-                      <span className="text-muted-foreground">
-                        {new Date(row.createdAt).toLocaleString()}
-                      </span>
-                    </span>
-                    <Badge variant={row.status === 'completed' ? 'success' : 'warning'}>{row.status}</Badge>
+      {canRead && exportsQuery.isSuccess && exportsEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Recent exports</CardTitle>
+            <CardDescription>
+              Most recent first — files are private to this workspace.
+              {exportMaxAgeDays !== null
+                ? ` Files older than ${exportMaxAgeDays} day${exportMaxAgeDays === 1 ? '' : 's'} are hidden and cannot be downloaded.`
+                : ''}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {exports.length === 0 && (
+              <p className="text-sm text-muted-foreground">No exports yet. Generate one above.</p>
+            )}
+            <ul className="flex flex-col divide-y divide-border">
+              {exports.map((row) => (
+                <li key={row.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                  <FileSpreadsheet aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {row.report} —{' '}
+                    <span className="text-muted-foreground">{new Date(row.createdAt).toLocaleString()}</span>
+                  </span>
+                  <Badge variant={row.status === 'completed' ? 'success' : 'warning'}>{row.status}</Badge>
+                  {row.status === 'completed' && (
                     <a
                       href={`${getApiBaseUrl()}/workspaces/${workspaceId}/exports/${row.id}/download`}
                       download
@@ -189,13 +177,13 @@ export function Reports() {
                     >
                       <Download aria-hidden="true" className="h-4 w-4" />
                     </a>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

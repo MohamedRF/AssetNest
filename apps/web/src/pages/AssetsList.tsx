@@ -67,6 +67,8 @@ export function AssetsList() {
 
   const canUseAi =
     workspace?.role === 'owner' || workspace?.role === 'admin' || workspace?.role === 'manager';
+  const canManageAssets = ['owner', 'admin', 'manager'].includes(workspace?.role ?? '');
+  const hasFilters = Boolean(q || status || condition);
 
   const preview = useQuery({
     queryKey: ['ai-route-preview', workspaceId, 'natural_language_search'],
@@ -227,19 +229,20 @@ export function AssetsList() {
     <div className="flex flex-col">
       <PageHeader
         title="Assets"
-        demo={false}
         description="Everything your workspace owns. Search by tag, name or serial — tags are unique per workspace."
         actions={
-          <>
-            <Link to="/imports" className={cn(buttonVariants({ variant: 'outline', size: 'md' }), 'gap-2')}>
-              <Upload aria-hidden="true" className="h-4 w-4" />
-              <span className="hidden sm:inline">Import CSV</span>
-            </Link>
-            <Link to="/assets/new" className={cn(buttonVariants({ size: 'md' }))}>
-              <PackagePlus aria-hidden="true" className="h-4 w-4" />
-              New asset
-            </Link>
-          </>
+          canManageAssets && (
+            <>
+              <Link to="/imports" className={cn(buttonVariants({ variant: 'outline', size: 'md' }), 'gap-2')}>
+                <Upload aria-hidden="true" className="h-4 w-4" />
+                <span className="hidden sm:inline">Import CSV</span>
+              </Link>
+              <Link to="/assets/new" className={cn(buttonVariants({ size: 'md' }))}>
+                <PackagePlus aria-hidden="true" className="h-4 w-4" />
+                New asset
+              </Link>
+            </>
+          )
         }
       />
 
@@ -301,7 +304,7 @@ export function AssetsList() {
             <Input
               value={lookup}
               onChange={(event) => setLookup(event.target.value)}
-              placeholder="Scan or paste asset code…"
+              placeholder="Paste asset code…"
               aria-label="Find asset by QR code or asset ID"
               className="h-10 w-56 pl-9 font-mono text-xs"
             />
@@ -312,7 +315,6 @@ export function AssetsList() {
         </form>
       </div>
 
-      {/* AI-assisted filtering (P5-09): natural language → validated filter AST */}
       {canUseAi && aiAvailable && (
         <form
           onSubmit={askAi}
@@ -391,20 +393,22 @@ export function AssetsList() {
           role="alert"
           className="rounded-xl border border-danger/40 bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
         >
-          Could not load assets. Check that the API is running and try again.
+          Could not load assets. Try again in a moment.
         </p>
       )}
       {showEmpty && (
         <EmptyState
           icon={PackagePlus}
-          title={q || status || condition ? 'No assets match these filters' : 'Register your first asset'}
+          title={hasFilters ? 'No assets match these filters' : 'No assets yet'}
           description={
-            q || status || condition
+            hasFilters
               ? 'Try clearing the search, status or condition filter.'
-              : 'Laptops, tools, appliances, furniture — if your workspace owns it, it belongs here.'
+              : canManageAssets
+                ? 'Register assets to start tracking your equipment.'
+                : 'Assets will appear here when they are added to this workspace.'
           }
-          actionLabel={q || status || condition ? 'Clear filters' : 'Add first asset'}
-          actionHref={q || status || condition ? '/assets' : '/assets/new'}
+          actionLabel={hasFilters ? 'Clear filters' : canManageAssets ? 'Add first asset' : undefined}
+          actionHref={hasFilters ? '/assets' : canManageAssets ? '/assets/new' : undefined}
         />
       )}
       {!query.isLoading && rows.length > 0 && (

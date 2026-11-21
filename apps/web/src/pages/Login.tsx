@@ -110,9 +110,7 @@ export function Login() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl">Sign in to AssetNest</CardTitle>
-          <CardDescription>
-            Use the email and password for your workspace. Sessions are stored in an HttpOnly cookie.
-          </CardDescription>
+          <CardDescription>Use the email and password for your workspace.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
@@ -132,8 +130,8 @@ export function Login() {
               >
                 <ServerOff aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  Could not reach the AssetNest API. Make sure the API server is running (port 3000 by
-                  default) and try again.
+                  Could not connect to AssetNest. Try again, or contact your administrator if the problem
+                  continues.
                 </span>
               </div>
             )}
@@ -205,11 +203,6 @@ export function Login() {
           )}
         </CardContent>
       </Card>
-
-      <p className="mt-6 max-w-md text-center text-xs leading-5 text-muted-foreground">
-        Sessions are stored in an HttpOnly cookie on your own infrastructure. Nothing is stored on this
-        device.
-      </p>
     </main>
   );
 }

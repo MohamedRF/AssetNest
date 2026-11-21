@@ -89,9 +89,8 @@ export function Locations() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        demo={false}
         title="Locations"
-        description="Buildings, floors, rooms and shelves — the tree your assets live in. Paths are materialized for fast filtering."
+        description="Buildings, floors, rooms and shelves — the tree your assets live in."
         actions={
           canManage ? (
             <Button onClick={() => setOpen(true)}>
@@ -116,11 +115,11 @@ export function Locations() {
           role="alert"
           className="rounded-xl border border-danger/40 bg-danger-subtle p-4 text-sm text-danger-subtle-foreground"
         >
-          Could not load locations. Is the API running?
+          Could not load locations. Try again in a moment.
         </p>
       )}
 
-      {!locationsQuery.isLoading && sorted.length === 0 && (
+      {locationsQuery.isSuccess && sorted.length === 0 && (
         <EmptyState
           icon={FolderTree}
           title="No locations yet"

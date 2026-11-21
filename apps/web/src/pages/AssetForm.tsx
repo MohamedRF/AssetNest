@@ -230,7 +230,6 @@ export function AssetForm() {
 
       <PageHeader
         title="New asset"
-        demo={false}
         description="Tag the asset, capture its serial exactly as shown on the label, and file it into a category and location if you have them."
       />
 

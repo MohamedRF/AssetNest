@@ -125,7 +125,7 @@ export function Maintenance() {
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       }),
     onSuccess: () => {
-      toast({ title: 'Service logged — schedule advanced', variant: 'success' });
+      toast({ title: 'Service logged', variant: 'success' });
       setRecordPlan(null);
       setPerformedAt('');
       setCost('');
@@ -172,9 +172,8 @@ export function Maintenance() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        demo={false}
         title="Maintenance"
-        description="Recurring plans and service history — overdue work is impossible to miss."
+        description="View scheduled maintenance and record completed service."
         actions={
           canManage ? (
             <Button onClick={() => setPlanOpen(true)}>
@@ -185,7 +184,17 @@ export function Maintenance() {
         }
       />
 
-      {!plansQuery.isLoading && plans.length === 0 && (
+      {(plansQuery.isError || recordsQuery.isError) && (
+        <p role="alert" className="text-sm text-danger">
+          Could not load all maintenance details.
+        </p>
+      )}
+      {plansQuery.isLoading && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Loading maintenance plans…
+        </p>
+      )}
+      {plansQuery.isSuccess && plans.length === 0 && (
         <EmptyState
           icon={Wrench}
           title="No maintenance plans"
@@ -242,7 +251,7 @@ export function Maintenance() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Recent service</CardTitle>
-            <CardDescription>Latest 100 records across all assets</CardDescription>
+            <CardDescription>Up to 10 recent service records across all assets</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col divide-y divide-border">

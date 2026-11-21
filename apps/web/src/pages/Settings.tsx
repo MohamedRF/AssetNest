@@ -1,17 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import {
-  Bell,
-  Building2,
-  HardDrive,
-  Blocks,
-  ListChecks,
-  Moon,
-  Monitor,
-  Package,
-  ShieldCheck,
-  Sun,
-  type LucideIcon,
-} from 'lucide-react';
+import { Building2, Moon, Monitor, Sun, type LucideIcon } from 'lucide-react';
 import { PageHeader } from '../components/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -26,15 +14,6 @@ import { useSelectedWorkspace } from '../lib/use-selected-workspace';
 import { AiConnectionsCard } from './AiConnectionsCard';
 import { WorkspacePoliciesCard } from './WorkspacePoliciesCard';
 
-interface SettingsSection {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  /** Why or when this section becomes useful. */
-  note: string;
-}
-
-/** Working workspace card: lists your workspaces and creates new ones. */
 function WorkspaceCard() {
   const { workspaces, refresh } = useAuth();
   const { workspace, selectWorkspace } = useSelectedWorkspace();
@@ -129,39 +108,6 @@ function WorkspaceCard() {
   );
 }
 
-const STANDARD_SECTIONS: readonly SettingsSection[] = [
-  {
-    title: 'Assets & categories',
-    description: 'Categories, asset models, custom field templates and asset tag sequences.',
-    icon: Package,
-    note: 'Available once the API connects (Phase 1)',
-  },
-  {
-    title: 'Notifications',
-    description: 'Reminder preferences for warranty and maintenance due dates, and delivery channels.',
-    icon: Bell,
-    note: 'Available once scheduling ships (Phase 1)',
-  },
-  {
-    title: 'Storage',
-    description: 'Attachment storage, size and type limits, retention and download authorization.',
-    icon: HardDrive,
-    note: 'Available once private files ship (Phase 1)',
-  },
-  {
-    title: 'Integrations',
-    description: 'API tokens, signed webhooks and scoped service accounts.',
-    icon: Blocks,
-    note: 'Available once integrations ship (Phase 1)',
-  },
-  {
-    title: 'Security',
-    description: 'Sessions, password policy, two-factor authentication and audit log access.',
-    icon: ShieldCheck,
-    note: 'Available once identity hardening ships (Phase 1)',
-  },
-] as const;
-
 const THEME_OPTIONS: ReadonlyArray<{ value: Theme; label: string; icon: LucideIcon }> = [
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
@@ -181,8 +127,7 @@ export function Settings() {
     <div className="flex flex-col">
       <PageHeader
         title="Settings"
-        demo={false}
-        description="Workspace preferences and connected services. Everything here is tenant-scoped — no setting is shared across workspaces."
+        description="Change your appearance preferences and manage your workspace."
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -218,24 +163,6 @@ export function Settings() {
         </Card>
 
         <WorkspaceCard />
-
-        {STANDARD_SECTIONS.map((section) => (
-          <Card key={section.title}>
-            <CardHeader className="flex-row items-start gap-3 space-y-0">
-              <section.icon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
-              <div className="flex min-w-0 flex-col gap-1">
-                <CardTitle>{section.title}</CardTitle>
-                <CardDescription>{section.description}</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="flex items-center gap-1.5 text-xs leading-5 text-muted-foreground">
-                <ListChecks aria-hidden="true" className="h-4 w-4 shrink-0" />
-                {section.note}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
 
         {(workspace?.role === 'owner' || workspace?.role === 'admin') && (
           <WorkspacePoliciesCard key={workspace.id} workspaceId={workspace.id} />

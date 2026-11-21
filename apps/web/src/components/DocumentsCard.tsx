@@ -157,7 +157,12 @@ export function DocumentsCard({
           </p>
         )}
         {documentsQuery.isLoading && <p className="text-sm text-muted-foreground">Loading documents…</p>}
-        {!documentsQuery.isLoading && documents.length === 0 && (
+        {documentsQuery.isError && (
+          <p role="alert" className="text-sm text-danger">
+            Could not load documents.
+          </p>
+        )}
+        {documentsQuery.isSuccess && documents.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No documents yet. Invoices and warranty evidence keep purchase records audit-ready.
           </p>
@@ -199,7 +204,7 @@ export function DocumentsCard({
             setDeleteTarget(null);
           }}
           title={`Remove ${deleteTarget.originalName}?`}
-          description="The document is hidden from the asset. An administrator can restore it during the retention window."
+          description="This permanently removes the document from the asset’s attachments."
           confirmLabel="Remove document"
           tone="danger"
         />

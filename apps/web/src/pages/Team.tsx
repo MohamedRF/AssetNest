@@ -208,7 +208,6 @@ export function Team() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Team"
-        demo={false}
         description={`Members of ${workspace.name}. Roles control what everyone can do — the server enforces them on every request.`}
         actions={
           canManage ? (
@@ -227,15 +226,15 @@ export function Team() {
             Members
           </CardTitle>
           <CardDescription>
-            {membersQuery.isLoading
-              ? 'Loading members…'
-              : `${members.length} ${members.length === 1 ? 'member' : 'members'}`}
+            {membersQuery.data
+              ? `${members.length} ${members.length === 1 ? 'member' : 'members'}`
+              : 'People in this workspace'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {membersQuery.isLoading && <p className="text-sm text-muted-foreground">Loading members…</p>}
           {membersQuery.isError && (
-            <p className="text-sm text-danger">Could not load members. Check that the API is running.</p>
+            <p className="text-sm text-danger">Could not load members. Try again in a moment.</p>
           )}
           <ul className="flex flex-col divide-y divide-border">
             {members.map((member) => (
@@ -310,7 +309,15 @@ export function Team() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {pendingInvites.length === 0 ? (
+            {invitesQuery.isLoading ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                Loading invites…
+              </p>
+            ) : invitesQuery.isError ? (
+              <p role="alert" className="text-sm text-danger">
+                Could not load pending invites.
+              </p>
+            ) : pendingInvites.length === 0 ? (
               <p className="text-sm text-muted-foreground">No pending invites.</p>
             ) : (
               <ul className="flex flex-col divide-y divide-border">

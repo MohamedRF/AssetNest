@@ -104,7 +104,7 @@ async function toApiError(response: Response): Promise<ApiError> {
   const contentType = response.headers.get('content-type') ?? '';
   let body: unknown;
   try {
-    body = isJsonContentType(contentType) ? await response.json() : await response.text();
+    body = isJsonContentType(contentType) ? await response.json() : undefined;
   } catch {
     body = undefined;
   }
@@ -120,11 +120,7 @@ async function toApiError(response: Response): Promise<ApiError> {
     status: response.status,
     code,
     title,
-    detail:
-      detailFromBody ??
-      (typeof body === 'string' && body.length > 0
-        ? body.slice(0, 500)
-        : `The server responded with status ${response.status}.`),
+    detail: detailFromBody ?? 'AssetNest could not complete the request. Try again in a moment.',
   };
   if (requestId !== undefined) init.requestId = requestId;
   return new ApiError(init);
