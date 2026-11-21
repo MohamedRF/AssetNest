@@ -1,93 +1,96 @@
 # AssetNest
 
-AssetNest is a self-hosted asset manager for households and teams. Use it to find equipment, track who has it, keep purchase and warranty records, plan maintenance, and reconcile physical inventory. Each workspace has its own inventory, members, and policies.
+**Know what you own, where it is, and who has it.**
 
-**Current version:** 0.1.0 · **Interface:** Web browser · **License:** [MIT](LICENSE)
+AssetNest is a self-hosted inventory and equipment manager for households and teams. Track purchases, custody, warranties, and maintenance in the browser. Each workspace has its own inventory, members, and policies. The core app runs on your infrastructure without an AI provider or cloud account.
 
-Core inventory, custody, audits, reports, and administration run on your own infrastructure. AI and external integrations are optional.
+[Quick start](#quick-start) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
+
+![AssetNest inventory screen with search, condition filters, and ten tagged assets in the Northstar Studio example workspace](docs/screenshots/inventory.png)
+
+_The inventory in a fictional studio workspace, with available, assigned, checked-out, and in-repair equipment._
 
 ## What you can do
 
-| Area                     | Capabilities                                                                                                                                                                                                                           |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inventory                | Organize assets into categories and nested locations. Record asset tags, serial numbers, condition, status, purchase details, and private attachments. Find assets by filtering, searching, or opening QR labels.                      |
-| Custody and lifecycle    | Assign, transfer, and return assets. Review asset history, track warranties, and record planned and completed maintenance.                                                                                                             |
-| Audits and reporting     | Reconcile physical inventory, record discrepancies, and review activity. Preview CSV imports with row-level validation and export asset, warranty, and maintenance reports.                                                            |
-| Workspace administration | Manage members and roles, configure audit retention and export access, and require human approval for retirement or disposal. Use local sign-in or configure an OIDC provider.                                                         |
-| Integrations             | Use the versioned REST API, generated TypeScript SDK, scoped API tokens, signed outbound webhooks, or the optional Model Context Protocol (MCP) endpoint.                                                                              |
-| Optional AI              | Draft asset records from invoices, suggest categories from photos, filter assets with natural language, generate maintenance suggestions, and ask read-only questions about an asset. Review proposed records before applying changes. |
+- **Organize equipment.** Register assets with unique tags, serial numbers, purchase details, and private documents. Group them by category and nested location. Find a record by search or its QR code.
+- **Track custody and service.** Assign, transfer, and return equipment. Review its history, set maintenance schedules, and track expiring warranties.
+- **Audit and report.** Count inventory by location, record missing or moved items, preview and validate CSV imports, and export asset, warranty, and maintenance reports.
+- **Set workspace policies.** Invite members, manage roles, configure audit retention and export expiry, and require human approval for retirement or disposal. Use local sign-in or configure OIDC.
 
-## Quick start with Docker Compose
+## Quick start
 
-You need Docker with Compose v2. The reference stack includes PostgreSQL 17, Redis 7, a migration job, the API, the background worker, and Caddy for the web app.
+You need Git and Docker with Compose v2. The reference stack includes PostgreSQL 17, Redis 7, the API, the worker, and the web app.
 
-1. Clone the repository and open it in your terminal.
+1. **Get the source.**
 
    ```sh
    git clone https://github.com/MohamedRF/AssetNest.git
    cd AssetNest
    ```
 
-2. Prepare the deployment configuration using the [environment template](.env.example) and the [Compose setup guide](infrastructure/compose/README.md#1-prepare-env). Set the database credentials and generate a session secret and encryption key. Use `PUBLIC_APP_URL=http://localhost` for local evaluation on the default web port. Remove both seed credentials to create the first account in the browser. Keep AI disabled for the initial setup.
-3. Set `ASSETNEST_CONFIG` in your shell to the absolute path of the configuration you prepared. Start the stack from the repository root and initialize the built-in workspace roles.
+2. **Prepare the configuration.** Follow the [Compose setup guide](infrastructure/compose/README.md#1-prepare-env) using the [environment template](.env.example). Set the database credentials, generate the session secret and encryption key, and use `PUBLIC_APP_URL=http://localhost` for a local install on the default port. Remove both seed credential settings if you want to create the first account in the browser.
+3. **Start the stack.** Set `ASSETNEST_CONFIG` to the absolute path of your prepared configuration. Once the stack starts and migrations finish, run the seed command to initialize workspace roles.
 
    ```sh
-   docker compose --env-file "$ASSETNEST_CONFIG" -f infrastructure/compose/compose.yaml --profile app up -d --build
-   docker compose --env-file "$ASSETNEST_CONFIG" -f infrastructure/compose/compose.yaml --profile app run --rm migrate pnpm --filter @assetnest/db seed
+   docker compose --env-file "$ASSETNEST_CONFIG" \
+     -f infrastructure/compose/compose.yaml --profile app up -d --build
+
+   docker compose --env-file "$ASSETNEST_CONFIG" \
+     -f infrastructure/compose/compose.yaml --profile app run --rm migrate \
+     pnpm --filter @assetnest/db seed
    ```
 
-4. Open [http://localhost](http://localhost) for a local evaluation. Create the first account on a fresh database or use the seeded account if you opted into [administrator seeding](docs/INSTALL.md#first-administrator). Create a workspace in **Home** or **Office** mode. Add a location and category, then register your first asset.
-5. Check that the API can reach PostgreSQL.
+4. **Open [localhost](http://localhost).** Create the first account on an empty database or sign in with the [seeded account](docs/INSTALL.md#first-administrator). Create a **Home** or **Office** workspace, then add a location, a category, and your first asset.
+5. **Check readiness.** Run `curl -fsS http://localhost/api/v1/health/ready` to confirm that the API can reach PostgreSQL.
 
-   ```sh
-   curl -fsS http://localhost/api/v1/health/ready
-   ```
+For a network-facing deployment, use HTTPS, set `PUBLIC_APP_URL` to the public origin, and back up PostgreSQL together with your private-file volume. [Installation guide](docs/INSTALL.md) · [Operations guide](DEPLOYMENT_OPERATIONS.md)
 
-For a network-facing deployment, configure HTTPS and set `PUBLIC_APP_URL` to the public origin. Use a persistent private-file volume and back it up with PostgreSQL. The current build uses local filesystem storage. See the [installation guide](docs/INSTALL.md) and [operations guide](DEPLOYMENT_OPERATIONS.md).
+## Screenshots
 
-## Develop from source
+<details>
+<summary>View an asset record and an inventory audit</summary>
 
-Use Node.js 22.12 or later and pnpm 10.34.9. Follow the [source setup steps](docs/INSTALL.md#option-a--development-source--infra-containers) to start PostgreSQL and Redis, export the host configuration, and apply migrations. The web app runs on port 5173 and the API runs on port 3000 by default.
+### Asset record
 
-From the repository root, run the same core checks used by CI.
+The equipment record shows purchase details, tags, a QR label, private documents, and custody controls.
+
+![Mirrorless camera kit record with its serial number, purchase price, notes, tags, QR label, and assignment controls](docs/screenshots/asset-details.png)
+
+### Inventory audit
+
+The audit tracks count progress and distinguishes present, missing, and uncounted records.
+
+![Equipment room audit showing two of four assets counted, with one present, one missing, and two not yet counted](docs/screenshots/inventory-audit.png)
+
+</details>
+
+## Integrations and optional AI
+
+- **REST and TypeScript SDK.** Use `/api/v1` with a workspace-scoped token created in **Integrations**. A running instance serves Swagger UI at `/api/docs` and OpenAPI JSON at `/api/docs-json`. [API contract](API_SPECIFICATION.md) · [SDK guide](packages/sdk/README.md)
+- **Webhooks and MCP.** Enable signed outbound webhooks or the optional MCP endpoint at `/api/v1/mcp`. [Integration examples](examples/README.md)
+- **AI workflows.** With `AI_ENABLED=true`, a workspace administrator can configure OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, or local Ollama. Draft asset records from invoices, suggest categories from photos, filter assets in plain language, or ask questions about an asset. Review proposals before applying them. [AI endpoint settings](DEPLOYMENT_OPERATIONS.md#ai-endpoints-in-self-hosted-networks) · [Optional LiteLLM gateway](examples/README.md#optional-litellm-gateway)
+
+## Development
+
+AssetNest uses React, Vite, and Tailwind CSS for the [web app](apps/web), NestJS for the [API](apps/api), PostgreSQL and Drizzle for [data access](packages/db), and Redis and BullMQ for the [worker](apps/worker).
+
+Use Node.js 22.12 or later and pnpm 10.34.9. Follow the [source setup instructions](docs/INSTALL.md#option-a--development-source--infra-containers) to start dependencies, configure the shell, and run migrations. The web app listens on port 5173 and the API on port 3000 by default.
 
 ```sh
-pnpm install --frozen-lockfile
 pnpm lint
 pnpm typecheck
-pnpm test
+pnpm test --concurrency=1
 pnpm build
 pnpm format:check
 pnpm sdk:check
 ```
 
-| Path                                                                                                             | Responsibility                                                                              |
-| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [apps/web](apps/web)                                                                                             | React, TypeScript, Vite, and Tailwind CSS browser app                                       |
-| [apps/api](apps/api)                                                                                             | NestJS REST API, sessions, workspace authorization, and domain workflows                    |
-| [apps/worker](apps/worker)                                                                                       | Redis and BullMQ jobs, transactional outbox processing, notification delivery, and webhooks |
-| [packages/db](packages/db)                                                                                       | PostgreSQL client, Drizzle schema, migrations, and seed commands                            |
-| [packages/domain](packages/domain), [packages/contracts](packages/contracts), [packages/config](packages/config) | Shared business rules, validation contracts, and environment configuration                  |
-| [packages/ai](packages/ai), [packages/sdk](packages/sdk)                                                         | AI provider adapters and generated REST client types                                        |
-| [infrastructure](infrastructure), [examples](examples)                                                           | Compose deployment, operations scripts, and integration examples                            |
+## Documentation
 
-## API and integrations
+- **Deploy and maintain** · [Installation](docs/INSTALL.md) · [Operations and backups](DEPLOYMENT_OPERATIONS.md) · [Upgrades and rollback](docs/UPGRADE.md)
+- **Try and verify** · [Demo walkthrough](docs/DEMO.md) · [Release process](docs/RELEASE.md) · [Changelog](CHANGELOG.md)
+- **Contribute or get help** · [Contributing and bug reports](CONTRIBUTING.md) · [Private vulnerability reporting](SECURITY.md)
 
-- **REST and OpenAPI.** Requests use `/api/v1`. A running instance serves Swagger UI at `/api/docs` and the OpenAPI document at `/api/docs-json`. Browser requests use a session cookie and a CSRF header for writes. External automation uses a scoped bearer token from the workspace’s **Integrations** page. [REST API contract](API_SPECIFICATION.md)
-- **TypeScript SDK.** Run `pnpm sdk:generate` after a contract change and `pnpm sdk:check` to check for drift. [SDK guide](packages/sdk/README.md)
-- **Webhooks and MCP.** Enable these features individually. Verify webhook signatures and deduplicate deliveries. When enabled, MCP is served at `/api/v1/mcp` and uses workspace-scoped API tokens. [CSV import, webhook receiver, n8n, and gateway examples](examples/README.md)
+## License
 
-## Optional AI provider configuration
-
-Set `AI_ENABLED=true` to configure AI. A workspace administrator can add provider connections, verify model capabilities, and choose models, timeouts, budgets, and fallback routes by task. Adapters support OpenAI, Anthropic, Gemini, OpenAI-compatible APIs, and local Ollama. Connection credentials are encrypted, and inputs sent to a configured provider depend on the selected task and its consent requirements. [AI endpoint settings](DEPLOYMENT_OPERATIONS.md#ai-endpoints-in-self-hosted-networks) · [Optional LiteLLM setup](examples/README.md#optional-litellm-gateway)
-
-## Security and operations
-
-- **Access and retention.** The server enforces workspace permissions on requests and automation. Audit retention defaults to indefinite and pruning is an explicit administrator action. Export availability and expiry can be configured per workspace. [Security policy](SECURITY.md)
-- **Backups and upgrades.** Keep matching database and private-file backups, preserve the encryption key separately, and run a restore drill before relying on backups. Apply migrations before starting upgraded services. [Operations runbook](DEPLOYMENT_OPERATIONS.md) · [Upgrade and rollback guide](docs/UPGRADE.md)
-- **Verification and releases.** The test suite covers workspace isolation, API contracts, lifecycle workflows, and failure handling. A disposable-stack demo covers bootstrap, inventory, and CSV export. [Test commands](CONTRIBUTING.md#before-opening-a-pull-request) · [Demo](docs/DEMO.md) · [Release process](docs/RELEASE.md)
-
-## Project information
-
-- [Changelog](CHANGELOG.md)
-- [Contributing](CONTRIBUTING.md) and [private security reporting](SECURITY.md)
+AssetNest is available under the [MIT License](LICENSE).
