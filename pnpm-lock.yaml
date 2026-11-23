@@ -79,7 +79,7 @@ importers:
         version: 0.45.2
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(@electric-sql/pglite@0.5.16)(@types/pg@8.23.1)(pg@8.23.1)
+        version: 0.45.4(@electric-sql/pglite@0.5.17)(@types/pg@8.23.1)(pg@8.23.1)
       jose:
         specifier: 6.2.18
         version: 6.2.18
@@ -100,8 +100,8 @@ importers:
         version: 4.6.7
     devDependencies:
       '@electric-sql/pglite':
-        specifier: 0.5.16
-        version: 0.5.16
+        specifier: 0.5.17
+        version: 0.5.17
       '@nestjs/testing':
         specifier: 12.5.1
         version: 12.5.1(@nestjs/common@12.5.1(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.5.1)(@nestjs/platform-express@12.5.1)
@@ -234,8 +234,8 @@ importers:
         version: 10.6.0
     devDependencies:
       '@electric-sql/pglite':
-        specifier: 0.5.16
-        version: 0.5.16
+        specifier: 0.5.17
+        version: 0.5.17
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
@@ -244,7 +244,7 @@ importers:
         version: 8.0.2
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(@electric-sql/pglite@0.5.16)(@types/pg@8.23.1)(pg@8.23.1)
+        version: 0.45.4(@electric-sql/pglite@0.5.17)(@types/pg@8.23.1)(pg@8.23.1)
       rimraf:
         specifier: 6.1.4
         version: 6.1.4
@@ -315,14 +315,14 @@ importers:
         specifier: workspace:*
         version: link:../domain
       '@electric-sql/pglite':
-        specifier: 0.5.16
-        version: 0.5.16
+        specifier: 0.5.17
+        version: 0.5.17
       argon2:
         specifier: 0.45.2
         version: 0.45.2
       drizzle-orm:
         specifier: 0.45.4
-        version: 0.45.4(@electric-sql/pglite@0.5.16)(@types/pg@8.23.1)(pg@8.23.1)
+        version: 0.45.4(@electric-sql/pglite@0.5.17)(@types/pg@8.23.1)(pg@8.23.1)
       pg:
         specifier: 8.23.1
         version: 8.23.1
@@ -332,7 +332,7 @@ importers:
     devDependencies:
       '@electric-sql/pglite-socket':
         specifier: 0.2.19
-        version: 0.2.19(@electric-sql/pglite-age@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_hashids@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_ivm@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_textsearch@0.0.18(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_uuidv7@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pgtap@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pgvector@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite@0.5.16)
+        version: 0.2.19(@electric-sql/pglite-age@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_hashids@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_ivm@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_textsearch@0.0.18(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_uuidv7@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pgtap@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pgvector@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite@0.5.17)
       '@types/node':
         specifier: 26.6.6
         version: 26.6.6
@@ -447,8 +447,8 @@ packages:
       '@electric-sql/pglite-pgtap': 0.0.17
       '@electric-sql/pglite-pgvector': 0.0.17
 
-  '@electric-sql/pglite@0.5.16':
-    resolution: {integrity: sha512-Nj8KcIsJL748W408U2N8q4+9IlONdpRIU8MJypIAAINMJ5nqKyqpX7Mgg/5XKkXiAib3AoZGR6hnJFlrlLBrcg==}
+  '@electric-sql/pglite@0.5.17':
+    resolution: {integrity: sha512-8SvKjiUjaU+0O0dbxjOfN+jXz14TEqDWbwDkYOW1aQ11y/ph2JvFVI27ABBo5nfw+ZfSqy4hKCNlbnbB1TDE+g==}
 
   '@emnapi/core@2.0.0-beta.2':
     resolution: {integrity: sha512-MzCVoWtcg4Pm2B3je5mMvYMvj3MmBKw+fU7vbsJc9/iT8ip6/eYIHo/Dsm/mr+wsHB6SEyJDuxB09Yy6r/8+4A==}
@@ -3336,46 +3336,46 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@electric-sql/pglite-age@0.0.17(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-age@0.0.17(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-pg_hashids@0.0.17(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-pg_hashids@0.0.17(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-pg_ivm@0.0.17(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-pg_ivm@0.0.17(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-pg_textsearch@0.0.18(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-pg_textsearch@0.0.18(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-pg_uuidv7@0.0.17(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-pg_uuidv7@0.0.17(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-pgtap@0.0.17(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-pgtap@0.0.17(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-pgvector@0.0.17(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-pgvector@0.0.17(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
 
-  '@electric-sql/pglite-socket@0.2.19(@electric-sql/pglite-age@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_hashids@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_ivm@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_textsearch@0.0.18(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pg_uuidv7@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pgtap@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite-pgvector@0.0.17(@electric-sql/pglite@0.5.16))(@electric-sql/pglite@0.5.16)':
+  '@electric-sql/pglite-socket@0.2.19(@electric-sql/pglite-age@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_hashids@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_ivm@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_textsearch@0.0.18(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pg_uuidv7@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pgtap@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite-pgvector@0.0.17(@electric-sql/pglite@0.5.17))(@electric-sql/pglite@0.5.17)':
     dependencies:
-      '@electric-sql/pglite': 0.5.16
-      '@electric-sql/pglite-age': 0.0.17(@electric-sql/pglite@0.5.16)
-      '@electric-sql/pglite-pg_hashids': 0.0.17(@electric-sql/pglite@0.5.16)
-      '@electric-sql/pglite-pg_ivm': 0.0.17(@electric-sql/pglite@0.5.16)
-      '@electric-sql/pglite-pg_textsearch': 0.0.18(@electric-sql/pglite@0.5.16)
-      '@electric-sql/pglite-pg_uuidv7': 0.0.17(@electric-sql/pglite@0.5.16)
-      '@electric-sql/pglite-pgtap': 0.0.17(@electric-sql/pglite@0.5.16)
-      '@electric-sql/pglite-pgvector': 0.0.17(@electric-sql/pglite@0.5.16)
+      '@electric-sql/pglite': 0.5.17
+      '@electric-sql/pglite-age': 0.0.17(@electric-sql/pglite@0.5.17)
+      '@electric-sql/pglite-pg_hashids': 0.0.17(@electric-sql/pglite@0.5.17)
+      '@electric-sql/pglite-pg_ivm': 0.0.17(@electric-sql/pglite@0.5.17)
+      '@electric-sql/pglite-pg_textsearch': 0.0.18(@electric-sql/pglite@0.5.17)
+      '@electric-sql/pglite-pg_uuidv7': 0.0.17(@electric-sql/pglite@0.5.17)
+      '@electric-sql/pglite-pgtap': 0.0.17(@electric-sql/pglite@0.5.17)
+      '@electric-sql/pglite-pgvector': 0.0.17(@electric-sql/pglite@0.5.17)
 
-  '@electric-sql/pglite@0.5.16': {}
+  '@electric-sql/pglite@0.5.17': {}
 
   '@emnapi/core@2.0.0-beta.2':
     dependencies:
@@ -4524,9 +4524,9 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.15
 
-  drizzle-orm@0.45.4(@electric-sql/pglite@0.5.16)(@types/pg@8.23.1)(pg@8.23.1):
+  drizzle-orm@0.45.4(@electric-sql/pglite@0.5.17)(@types/pg@8.23.1)(pg@8.23.1):
     optionalDependencies:
-      '@electric-sql/pglite': 0.5.16
+      '@electric-sql/pglite': 0.5.17
       '@types/pg': 8.23.1
       pg: 8.23.1
 
