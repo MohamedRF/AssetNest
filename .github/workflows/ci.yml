@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # pnpm must be installed before setup-node so `cache: pnpm` can resolve
       # the store path.
@@ -127,7 +127,7 @@ jobs:
       DATABASE_URL: postgresql://assetnest_ci:assetnest_ci_password@localhost:5432/assetnest_ci
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -161,7 +161,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # docker compose config requires interpolation variables and env_file to
       # exist. The throwaway .env below uses obvious CI-only placeholder values —
