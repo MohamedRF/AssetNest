@@ -7,7 +7,7 @@
 # Build context MUST be the repository root:
 #   docker build -f infrastructure/compose/Dockerfile.worker -t assetnest/worker:local .
 
-FROM node:24-alpine
+FROM node:26-alpine
 
 ARG VERSION=0.1.0
 ARG REVISION=unknown
