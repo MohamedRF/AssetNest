@@ -172,7 +172,7 @@ jobs:
 
       - name: Docker metadata (api)
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-api
           tags: |
@@ -200,7 +200,7 @@ jobs:
 
       - name: Docker metadata (web)
         id: meta-web
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-web
           tags: |
@@ -228,7 +228,7 @@ jobs:
 
       - name: Docker metadata (worker)
         id: meta-worker
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ steps.image.outputs.owner }}/assetnest-worker
           tags: |
