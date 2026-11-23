@@ -10,14 +10,15 @@ isolation, credential handling and private files seriously.
 | 0.1.x   | ✅ Security fixes |
 | < 0.1   | ❌ Not supported  |
 
-Before reporting, make sure you are on the latest patch release. Release tags
-are signed and published with SBOMs (see `docs/RELEASE.md`).
+Before reporting, include the version or commit you are running. The release workflow is configured
+to sign container images and publish SBOMs; see [the release process](docs/RELEASE.md) and verify
+the artifacts attached to the release you use.
 
 ## Reporting a vulnerability
 
 **Do not open a public GitHub issue for a security vulnerability.**
 
-Use GitHub's private vulnerability reporting:
+Use [GitHub's private vulnerability reporting](https://github.com/MohamedRF/AssetNest/security/advisories/new):
 
 1. Go to the repository's **Security** tab.
 2. Click **Report a vulnerability**.
@@ -28,7 +29,7 @@ Use GitHub's private vulnerability reporting:
    - any relevant logs or request/response pairs (redact real data).
 
 If private reporting is unavailable, contact the maintainers through the
-repository's stated security contact. Please do not include real personal data,
+public contact listed on [the maintainer's GitHub profile](https://github.com/MohamedRF). Please do not include real personal data,
 credentials or customer content in the report.
 
 We aim to:

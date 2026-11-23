@@ -20,7 +20,7 @@ safe default and the core application is fully functional with AI off.
 ## Option A — Development (source + infra containers)
 
 ```sh
-git clone <repo-url> AssetNest
+git clone https://github.com/MohamedRF/AssetNest.git
 cd AssetNest
 cp .env.example .env
 # Edit .env: replace every REPLACE_*/CHANGE_ME value.

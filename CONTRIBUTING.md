@@ -15,11 +15,27 @@ the expectations for a reviewable change.
 
 ## Local setup
 
-Requires Node.js ≥ 22.12, pnpm 10 and Docker (for PostgreSQL/Redis).
+Requires Node.js ≥ 22.12, pnpm **10.34.9** (pinned in `package.json`) and Docker (for PostgreSQL/Redis).
+CI uses Node.js 24; the reference Docker images use Node.js 26.
 
 Clone your fork and follow the [source installation guide](docs/INSTALL.md#option-a--development-source--infra-containers)
 to configure the environment, apply migrations, seed workspace roles, and
 start the API and web app.
+
+## Branch workflow
+
+1. Fork the repository and create a focused branch from the latest `master`.
+2. Install dependencies with `pnpm install --frozen-lockfile`.
+3. Make the change and run the checks relevant to it.
+4. Open a pull request against `master` using the PR template.
+5. Keep the branch up to date and resolve review conversations before merging.
+
+`master` is protected. Pull requests must pass the baseline CI, PostgreSQL migration, and Docker validation
+checks. These rules also apply to administrators. Do not push directly to `master` or bypass checks.
+
+For a first contribution, start with the [architecture guide](docs/ARCHITECTURE.md), improve a documentation
+example, or look for issues labeled [good first issue](https://github.com/MohamedRF/AssetNest/labels/good%20first%20issue).
+For substantial changes, open a feature request to discuss the scope before implementing it.
 
 ## Before opening a pull request
 
@@ -67,6 +83,10 @@ targeted security test (cross-tenant, scope, SSRF, or replay as appropriate).
 
 - Bugs: open an issue with reproduction steps and expected/actual behavior.
 - Vulnerabilities: **do not** open a public issue. See `SECURITY.md`.
+
+## Community
+
+Follow the [code of conduct](CODE_OF_CONDUCT.md). For installation help or usage questions, see [SUPPORT.md](SUPPORT.md).
 
 ## License
 
