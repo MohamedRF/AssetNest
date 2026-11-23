@@ -21,7 +21,7 @@
     "nodemailer": "10.6.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.16",
+    "@electric-sql/pglite": "0.5.17",
     "@types/node": "26.6.6",
     "@types/nodemailer": "8.0.2",
     "drizzle-orm": "0.45.4",

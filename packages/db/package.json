@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@assetnest/domain": "workspace:*",
-    "@electric-sql/pglite": "0.5.16",
+    "@electric-sql/pglite": "0.5.17",
     "argon2": "0.45.2",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1",
