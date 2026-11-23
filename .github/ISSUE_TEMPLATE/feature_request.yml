@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest an improvement with a concrete use case.
+title: '[Feature]: '
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the equipment-management problem you want to solve.
+        Check existing issues first and use fictional examples rather than real customer data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Who needs this, what are they trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the user-facing behavior you would like.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include any current workaround or related feature.
+  - type: textarea
+    id: scope
+    attributes:
+      label: Additional context
+      description: Mockups, examples, and effects on workspace permissions or integrations.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this request.
+          required: true

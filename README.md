@@ -5,13 +5,16 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#product-tour">Product tour</a> ·
-  <a href="docs/INSTALL.md">Installation</a> ·
-  <a href="CONTRIBUTING.md">Contribute</a>
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="SUPPORT.md">Get help</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/MohamedRF/AssetNest/actions/workflows/ci.yml"><img alt="GitHub Actions CI status" src="https://github.com/MohamedRF/AssetNest/actions/workflows/ci.yml/badge.svg?branch=master"></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue"></a>
+  <a href="docs/ARCHITECTURE.md"><img alt="Built with TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white"></a>
+  <a href="infrastructure/compose/README.md"><img alt="Deploy with Docker Compose" src="https://img.shields.io/badge/Docker%20Compose-2496ED?logo=docker&logoColor=white"></a>
 </p>
 
 <p align="center">
@@ -19,6 +22,17 @@
 </p>
 
 Keep equipment records, purchase details, and documents in one place. Label assets, track who has them, and reconcile what’s physically on the shelf. AssetNest runs in your browser on infrastructure you control. Core inventory works without an AI key or a cloud account.
+
+## At a glance
+
+|                  | AssetNest                                                                        |
+| ---------------- | -------------------------------------------------------------------------------- |
+| **Use cases**    | Equipment rooms, shared devices, office inventory, and internal asset operations |
+| **Deployment**   | Self-hosted browser app with a Docker Compose reference stack                    |
+| **Ownership**    | Your infrastructure, database, private files, and backups                        |
+| **Access**       | Multiple workspaces, role-based permissions, local login, and optional OIDC      |
+| **Integrations** | REST API, TypeScript SDK, signed webhooks, n8n examples, and optional MCP        |
+| **AI**           | Optional; core inventory works with AI disabled                                  |
 
 ## Quick start
 
@@ -64,7 +78,7 @@ The [Compose guide](infrastructure/compose/README.md) covers PowerShell and Bash
 
 The web app uses React, Vite, and Tailwind CSS. The NestJS API stores data in PostgreSQL through Drizzle, and the worker uses Redis and BullMQ.
 
-Use Node.js 22.12 or later and pnpm 10.34.9. Follow the [source setup guide](docs/INSTALL.md#option-a--development-source--infra-containers) to configure the environment, run migrations, and start the web app and API.
+Use Node.js 22.12 or later and the pinned pnpm 10.34.9. CI uses Node.js 24; the reference Docker images use Node.js 26. Follow the [source setup guide](docs/INSTALL.md#option-a--development-source--infra-containers) to configure the environment, run migrations, and start the web app and API.
 
 ```sh
 pnpm lint
@@ -77,12 +91,21 @@ pnpm sdk:check
 
 ## Documentation
 
+Start with the [documentation index](docs/README.md) or [architecture and repository map](docs/ARCHITECTURE.md).
+
 | Task                 | Guides                                                                                                                                                                                      |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Install and maintain | [Installation options](docs/INSTALL.md) · [Docker Compose](infrastructure/compose/README.md) · [Operations and backups](DEPLOYMENT_OPERATIONS.md) · [Upgrade and rollback](docs/UPGRADE.md) |
 | Try the product      | [Demo walkthrough](docs/DEMO.md)                                                                                                                                                            |
 | Follow releases      | [Changelog](CHANGELOG.md) · [Release process](docs/RELEASE.md)                                                                                                                              |
 | Get involved         | [Contributing and bug reports](CONTRIBUTING.md) · [Private vulnerability reporting](SECURITY.md)                                                                                            |
+
+## Community and support
+
+Bug reports, feature requests, and contributions are welcome. Read the [contributor guide](CONTRIBUTING.md),
+use the [issue templates](https://github.com/MohamedRF/AssetNest/issues/new/choose), and follow the
+[code of conduct](CODE_OF_CONDUCT.md). For setup questions, start with [support](SUPPORT.md).
+Report vulnerabilities through [private security reporting](https://github.com/MohamedRF/AssetNest/security/advisories/new).
 
 ## License
 

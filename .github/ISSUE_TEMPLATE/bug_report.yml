@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible problem in AssetNest.
+title: '[Bug]: '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve AssetNest. Check existing issues before reporting.
+        For security vulnerabilities, use private reporting instead of this form:
+        https://github.com/MohamedRF/AssetNest/security/advisories/new
+        Never include credentials, tokens, personal data, or a complete .env file.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release version or full Git commit SHA.
+      placeholder: '0.1.0 or commit SHA'
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Installation method
+      options:
+        - Docker Compose
+        - Development from source
+        - Custom deployment
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser/version, and relevant Node.js, Docker, or PostgreSQL versions.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Use sample data and include the smallest reproducible example.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs or screenshots
+      description: Redact credentials, personal details, internal URLs, and real asset data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: This report contains no secrets or personal data.
+          required: true

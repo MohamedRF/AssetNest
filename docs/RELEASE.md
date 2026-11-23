@@ -1,4 +1,4 @@
-# Release process (P7-01)
+# Release process
 
 AssetNest uses [Semantic Versioning](https://semver.org/) and a single version
 for the root and every workspace package. The OpenAPI document, `/api/v1/version`
@@ -6,7 +6,15 @@ and the MCP server all report that version.
 
 ## 1. Prepare a release
 
-From a clean `master`/`main`:
+Start from the latest `master` and prepare the release on a branch:
+
+```sh
+git switch master
+git pull --ff-only origin master
+git switch -c release/v0.2.0
+```
+
+Then update and verify the candidate:
 
 ```sh
 pnpm install --frozen-lockfile
@@ -21,17 +29,30 @@ $EDITOR CHANGELOG.md
 # Fail if anything is inconsistent:
 pnpm release:check
 
-pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm format:check && pnpm sdk:check
+pnpm lint && pnpm typecheck && pnpm test --concurrency=1 && pnpm build && pnpm format:check && pnpm sdk:check
 ```
 
-Commit the version bump and changelog, then tag and push:
+Commit the version bump and changelog, then open a pull request:
 
 ```sh
 git add -A
 git commit -m "release: v0.2.0"
-git tag -a v0.2.0 -m "AssetNest v0.2.0"
-git push origin master --follow-tags
+git push -u origin release/v0.2.0
+gh pr create --base master --title "release: v0.2.0" --body "Prepare the 0.2.0 release. See CHANGELOG.md for release notes."
 ```
+
+Wait for required CI and merge the release PR through the protected branch. Then tag the merged commit:
+
+```sh
+git switch master
+git pull --ff-only origin master
+pnpm release:check
+git tag -a v0.2.0 -m "AssetNest v0.2.0"
+git push origin v0.2.0
+```
+
+Pushing the tag publishes the release if verification passes; do this only when ready to publish.
+Do not push release commits directly to `master`.
 
 Pushing a stable `vX.Y.Z` tag triggers `.github/workflows/release.yml`. The
 workflow checks that the tag matches the version in `package.json` before

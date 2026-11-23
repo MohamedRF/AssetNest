@@ -1,0 +1,33 @@
+name: Usage question
+description: Ask a specific question that the documentation does not answer.
+title: '[Question]: '
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with SUPPORT.md and search existing issues before asking.
+        Do not include secrets, personal data, or a complete .env file.
+        Report security vulnerabilities privately instead:
+        https://github.com/MohamedRF/AssetNest/security/advisories/new
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: Describe your goal and the specific point you need help with.
+    validations:
+      required: true
+  - type: textarea
+    id: attempted
+    attributes:
+      label: Documentation and steps already tried
+      description: Link the relevant guide and explain what remains unclear.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Version and installation method
+      placeholder: 'Commit SHA, Docker Compose or source, OS and browser'
+    validations:
+      required: true
