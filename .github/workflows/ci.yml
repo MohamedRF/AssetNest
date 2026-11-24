@@ -7,8 +7,8 @@
 #   migrations — applies packages/db migrations to a real PostgreSQL 17 service to
 #                prove the chain works against genuine Postgres (PGlite is a
 #                compatible reimplementation, not the real thing).
-#   docker     — validates the compose files and builds all images (no push, no
-#                registry, no secrets).
+#   docker     — validates Compose, builds the images, and runs browser tests
+#                against the disposable stack.
 #
 # No secrets are required. No deployment steps. Image builds/pushes to registries
 # and release automation are intentionally out of scope until release criteria are met.
@@ -158,7 +158,9 @@ jobs:
   docker:
     name: Docker images + compose validation
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      COMPOSE_PROJECT_NAME: assetnest-browser-e2e
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -198,11 +200,40 @@ jobs:
       # Builds prove the Dockerfiles end-to-end (base-image pull, frozen install,
       # tsc/vite builds). Images are NOT pushed anywhere. Any failure here is
       # real breakage in the build chain and blocks the merge.
-      - name: Build API image
-        run: docker build -f infrastructure/compose/Dockerfile.api -t assetnest-api:ci .
+      - name: Build API, web, and worker images
+        run: docker compose --env-file .env --profile app -f infrastructure/compose/compose.yaml build api web worker
 
-      - name: Build web image
-        run: docker build -f infrastructure/compose/Dockerfile.web -t assetnest-web:ci .
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
 
-      - name: Build worker image
-        run: docker build -f infrastructure/compose/Dockerfile.worker -t assetnest-worker:ci .
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install browser test dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Run browser tests against Compose
+        run: |
+          sed -i 's/^NODE_ENV=.*/NODE_ENV=test/;s|^PUBLIC_APP_URL=.*|PUBLIC_APP_URL=http://127.0.0.1:18080|' .env
+          export WEB_PORT=18080
+          export SEED_ADMIN_EMAIL=browser-test@example.test
+          SEED_ADMIN_PASSWORD=$(node -p "require('node:crypto').randomBytes(24).toString('hex')")
+          export SEED_ADMIN_PASSWORD
+          echo "::add-mask::$SEED_ADMIN_PASSWORD"
+          docker compose --env-file .env --profile app -f infrastructure/compose/compose.yaml up -d --no-build --wait --wait-timeout 120
+          docker compose --env-file .env --profile app -f infrastructure/compose/compose.yaml run --rm -e SEED_ADMIN_EMAIL -e SEED_ADMIN_PASSWORD migrate pnpm --filter @assetnest/db seed
+          curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18080/api/v1/health/ready
+          pnpm test:browser
+
+      - name: Stop the disposable browser test stack
+        if: always()
+        env:
+          WEB_PORT: '18080'
+        run: docker compose --env-file .env --profile app -f infrastructure/compose/compose.yaml down --volumes

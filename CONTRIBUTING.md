@@ -57,6 +57,23 @@ pnpm --filter @assetnest/db test
 
 Never edit an applied migration; fix forward with a new one.
 
+## Browser tests
+
+Run `pnpm test:browser` against a disposable [Compose stack](infrastructure/compose/README.md).
+Set `NODE_ENV=test`, `AI_ENABLED=false`, `WEB_PORT=18080`, and
+`PUBLIC_APP_URL=http://127.0.0.1:18080` in its `.env`. Set `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD` to synthetic credentials and run the Compose seed command. The
+test creates its own tagged asset in a demo workspace during each run.
+
+```sh
+pnpm exec playwright install chromium webkit
+node --env-file=.env node_modules/@playwright/test/cli.js test
+```
+
+If the seed credentials are already exported in your shell, use `pnpm test:browser`.
+Set `BROWSER_TEST_BASE_URL` to match `PUBLIC_APP_URL` if using a different loopback port.
+On Linux, `pnpm exec playwright install --with-deps chromium webkit` can install missing system libraries.
+
 ## Code conventions
 
 - Strict TypeScript; avoid `any`.

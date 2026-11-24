@@ -53,9 +53,10 @@ See the [operations guide](../DEPLOYMENT_OPERATIONS.md) for configuration and de
 ## Verification
 
 The CI workflow runs lint, SDK drift checks, type checking, tests, builds, formatting, and a production
-dependency audit. Separate jobs apply migrations to PostgreSQL 17 and validate Compose plus all three
-Docker image builds. PGlite supports local database tests; real PostgreSQL migration checks provide
-additional coverage.
+dependency audit. Separate jobs apply migrations to PostgreSQL 17 and build all three Docker images.
+The Docker job also runs the custody browser test on Chromium and WebKit against a disposable Compose
+stack with AI disabled. PGlite supports local database tests, and the PostgreSQL job validates migrations
+on the deployed database engine.
 
 Changes reach `master` through pull requests with the required CI checks passing against the current branch.
 For local commands and review expectations, see [CONTRIBUTING.md](../CONTRIBUTING.md).
