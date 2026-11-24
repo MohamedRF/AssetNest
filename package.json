@@ -12,9 +12,10 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
-    "lint": "turbo lint",
-    "typecheck": "turbo typecheck",
+    "lint": "turbo lint && eslint playwright.config.ts tests/browser",
+    "typecheck": "turbo typecheck && tsc -p tsconfig.browser.json",
     "test": "turbo test",
+    "test:browser": "playwright test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "sdk:generate": "turbo build --filter=@assetnest/api && node scripts/generate-sdk.mjs",
@@ -33,6 +34,8 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
+    "@types/node": "26.6.6",
     "eslint": "10.15.0",
     "eslint-config-prettier": "10.1.8",
     "globals": "17.14.0",
