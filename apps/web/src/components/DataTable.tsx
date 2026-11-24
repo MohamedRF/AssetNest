@@ -34,17 +34,17 @@ export function DataTable<T extends object>({
   }
 
   return (
-    <div className="w-full overflow-x-auto rounded-xl border border-border bg-surface shadow-sm">
-      <table className="w-full min-w-[40rem] border-collapse text-sm">
+    <div className="w-full overflow-x-auto rounded-lg border border-border bg-surface shadow-sm">
+      <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead>
-          <tr className="border-b border-border text-left">
+          <tr className="border-b border-border bg-muted/60">
             {columns.map((column) => (
               <th
                 key={column.key}
                 scope="col"
                 className={cn(
-                  'px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+                  'whitespace-nowrap px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground',
                   column.className,
                 )}
               >
@@ -53,11 +53,11 @@ export function DataTable<T extends object>({
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border">
           {rows.map((row) => (
-            <tr key={getRowId(row)} className="border-b border-border last:border-b-0 hover:bg-muted/50">
+            <tr key={getRowId(row)} className="transition-colors hover:bg-muted/60">
               {columns.map((column) => (
-                <td key={column.key} className={cn('px-4 py-3 align-middle', column.className)}>
+                <td key={column.key} className={cn('px-4 py-2.5 align-middle', column.className)}>
                   {column.render
                     ? column.render(row)
                     : String((row as Record<string, unknown>)[column.key] ?? '')}
