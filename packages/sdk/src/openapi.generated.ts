@@ -443,6 +443,25 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/workspaces/{workspaceId}/ai/tasks/chat/stream': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** @description Stream a read-only asset chat answer as an AG-UI server-sent event stream. Each `data:` frame is one JSON-encoded AG-UI event (RUN_STARTED, STEP_STARTED/STEP_FINISHED progress, TEXT_MESSAGE_* answer, then RUN_FINISHED, or RUN_ERROR on failure). Requires ai:use and assets:read; tenant/user identity is derived server-side from the session. The AssetNest request body requires the route key from the provider preview. */
+    post: operations['streamAiAssetChat'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/workspaces/{workspaceId}/ai/tasks/extract-invoice': {
     parameters: {
       query?: never;
@@ -3336,6 +3355,55 @@ export interface operations {
             /** Format: uuid */
             jobId: string;
           };
+        };
+      };
+      /** @description Error with a machine-readable code and request ID */
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            code: string;
+            detail: string;
+            instance: string;
+            requestId: string;
+            status: number;
+            title: string;
+            /** @enum {string} */
+            type: 'about:blank';
+          };
+        };
+      };
+    };
+  };
+  streamAiAssetChat: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        workspaceId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          assetIds: string[];
+          consent: boolean;
+          question: string;
+          routeKey: string;
+        };
+      };
+    };
+    responses: {
+      /** @description AG-UI event stream. Each SSE `data:` frame is one JSON-encoded AG-UI event. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'text/event-stream': string;
         };
       };
       /** @description Error with a machine-readable code and request ID */

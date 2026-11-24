@@ -919,6 +919,15 @@ export const restOperations = {
       '200': 'json',
     },
   },
+  streamAiAssetChat: {
+    method: 'POST',
+    path: '/api/v1/workspaces/{workspaceId}/ai/tasks/chat/stream',
+    bearer: false,
+    multipart: false,
+    responseFormats: {
+      '200': 'text',
+    },
+  },
   previewAiTaskRoute: {
     method: 'GET',
     path: '/api/v1/workspaces/{workspaceId}/ai/tasks/{task}/preview',

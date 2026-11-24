@@ -113,6 +113,7 @@ describe('AI-disabled deployment (offline regression)', () => {
       ['get', 'routes'],
       ['post', 'tasks/query'],
       ['post', 'tasks/chat'],
+      ['post', 'tasks/chat/stream'],
       ['post', 'tasks/maintenance'],
       ['post', 'tasks/extract-invoice'],
       ['post', 'tasks/asset-suggestions'],

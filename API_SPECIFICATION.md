@@ -88,8 +88,20 @@ Enforcement is server-side in the asset lifecycle service: disposing/retiring an
 - `POST /workspaces/:workspaceId/ai/tasks/extract-invoice`
 - `POST /workspaces/:workspaceId/ai/tasks/asset-suggestions`
 - `POST /workspaces/:workspaceId/ai/tasks/query` (read-only allowlisted query planner)
+- `POST /workspaces/:workspaceId/ai/tasks/chat` — read-only asset chat; JSON body `{question, assetIds, consent, routeKey?}`, returns `{jobId, draft:{answer}}`
+- `POST /workspaces/:workspaceId/ai/tasks/chat/stream` serves the read-only AG-UI pilot described below.
 - `GET /workspaces/:workspaceId/ai/jobs/:jobId`
 - `POST /workspaces/:workspaceId/ai/jobs/:jobId/approve` (explicit user confirmation)
+
+### Asset chat stream
+
+`POST /workspaces/:workspaceId/ai/tasks/chat/stream` accepts JSON `{question, assetIds, consent, routeKey}`. Use the authenticated session and an `X-CSRF-Token` header. Fetch the provider and its `routeKey` from `GET /workspaces/:workspaceId/ai/tasks/asset_chat/preview` and obtain user confirmation before sending the question. The stream requires `routeKey`. If it returns `AI_ROUTE_CHANGED`, refresh the preview and ask the user to confirm the updated provider before submitting again.
+
+The request requires workspace membership and the `ai:use` and `assets:read` permissions. The server checks asset visibility, provider consent, route and model eligibility, and the workspace AI budget. Tenant and user identity come from the session.
+
+A successful HTTP response uses `200 text/event-stream` and `Cache-Control: no-store, no-transform`. Each SSE data frame carries one JSON event. A run emits `RUN_STARTED`, step events for authorized asset retrieval and response generation, the validated answer in a single `TEXT_MESSAGE_CONTENT` event bracketed by `TEXT_MESSAGE_START` and `TEXT_MESSAGE_END`, then `RUN_FINISHED`. Pre-stream errors use the usual HTTP problem response. A failure after the stream opens ends the run with `RUN_ERROR` carrying a safe message and code while the connection is writable. Treat the first terminal event as final and a connection that closes earlier as incomplete. A disconnect can leave an already-started provider request running until it completes or times out.
+
+The endpoint accepts AssetNest's chat request and emits [AG-UI response events](https://docs.ag-ui.com/concepts/events). The stock [AG-UI HttpAgent](https://docs.ag-ui.com/sdk/js/client/http-agent) sends `RunAgentInput` and needs a request adapter for this endpoint.
 
 ## Sample asset create
 
