@@ -7,6 +7,7 @@ import { z } from 'zod';
 
 export const uuidSchema = z.uuid();
 export * from './url-policy.js';
+export * from './ag-ui.js';
 
 /** RFC7807-inspired problem details, extended with a stable machine code + requestId. */
 export const problemDetailsSchema = z.object({

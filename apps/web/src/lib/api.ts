@@ -8,7 +8,10 @@
  * - Secrets are never logged.
  */
 
+import type { AgUiEvent } from '@assetnest/contracts';
+import type { OperationOptions } from '@assetnest/sdk';
 import { loginPathFor } from './asset-qr';
+import { readAgUiStream } from './ag-ui-stream';
 
 export interface ApiErrorInit {
   status: number;
@@ -85,6 +88,7 @@ export function getApiBaseUrl(): string {
 }
 
 const JSON_CONTENT_TYPE = 'application/json';
+const EVENT_STREAM_CONTENT_TYPE = 'text/event-stream';
 
 /** RFC 7807 uses application/problem+json; some servers emit +json suffixes generally. */
 function isJsonContentType(contentType: string): boolean {
@@ -134,7 +138,11 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-async function request<T>(path: string, options: RequestOptions): Promise<T> {
+async function fetchApi(
+  path: string,
+  options: RequestOptions,
+  accept = JSON_CONTENT_TYPE,
+): Promise<Response> {
   const { method, body, signal } = options;
   const hasBody = body !== undefined;
   // The request type models GET plus mutating verbs; every non-GET needs CSRF.
@@ -143,8 +151,8 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
   let response: Response;
   try {
     const headers: Record<string, string> = hasBody
-      ? { 'Content-Type': JSON_CONTENT_TYPE, Accept: JSON_CONTENT_TYPE }
-      : { Accept: JSON_CONTENT_TYPE };
+      ? { 'Content-Type': JSON_CONTENT_TYPE, Accept: accept }
+      : { Accept: accept };
     if (isMutating && csrfToken) {
       headers['x-csrf-token'] = csrfToken;
     }
@@ -174,6 +182,11 @@ async function request<T>(path: string, options: RequestOptions): Promise<T> {
   if (!response.ok) {
     throw await toApiError(response);
   }
+  return response;
+}
+
+async function request<T>(path: string, options: RequestOptions): Promise<T> {
+  const response = await fetchApi(path, options);
   if (response.status === 204) {
     return undefined as T;
   }
@@ -203,3 +216,37 @@ export const api = {
   patch: <T>(path: string, body?: unknown): Promise<T> => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string): Promise<T> => request<T>(path, { method: 'DELETE' }),
 } as const;
+
+type ChatStreamRequest = OperationOptions<'streamAiAssetChat'>['body'];
+
+/**
+ * POST an asset chat request and stream AG-UI events from the response body.
+ *
+ * Mirrors {@link api.post} transport concerns (session cookies, CSRF, problem
+ * normalization) but reads a `text/event-stream` body via {@link readAgUiStream}.
+ * The reader stops at the first terminal event. HTTP errors before the stream
+ * opens are surfaced as {@link ApiError}. The caller's signal can abort the request.
+ */
+export async function streamAiAssetChat(
+  workspaceId: string,
+  body: ChatStreamRequest,
+  onEvent: (event: AgUiEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetchApi(
+    `/workspaces/${encodeURIComponent(workspaceId)}/ai/tasks/chat/stream`,
+    { method: 'POST', body, ...(signal !== undefined ? { signal } : {}) },
+    EVENT_STREAM_CONTENT_TYPE,
+  );
+  const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+  if (!response.body || contentType !== EVENT_STREAM_CONTENT_TYPE) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new ApiError({
+      status: response.status,
+      code: 'invalid_response',
+      title: 'Invalid response',
+      detail: 'The server did not return an event stream.',
+    });
+  }
+  await readAgUiStream(response.body, onEvent);
+}

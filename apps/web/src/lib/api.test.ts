@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { api, ApiError, getApiBaseUrl, setUnauthorizedHandler, shouldRedirectToLogin } from './api';
+import {
+  api,
+  ApiError,
+  getApiBaseUrl,
+  setCsrfToken,
+  setUnauthorizedHandler,
+  shouldRedirectToLogin,
+  streamAiAssetChat,
+} from './api';
 
 function jsonResponse(status: number, body: unknown, contentType = 'application/json'): Response {
   return new Response(typeof body === 'string' ? body : JSON.stringify(body), {
@@ -18,6 +26,7 @@ describe('api client', () => {
   });
 
   afterEach(() => {
+    setCsrfToken(null);
     vi.unstubAllGlobals();
     setUnauthorizedHandler(undefined);
     window.history.pushState({}, '', '/');
@@ -44,6 +53,46 @@ describe('api client', () => {
     expect(init?.method).toBe('POST');
     expect(init?.headers).toEqual(expect.objectContaining({ 'Content-Type': 'application/json' }));
     expect(init?.body).toBe(JSON.stringify({ email: 'a@b.c', password: 'secret' }));
+  });
+
+  it('sends session credentials, CSRF and the reviewed route key for an event stream', async () => {
+    setCsrfToken('test-csrf');
+    const body = { question: 'Where is this asset?', assetIds: ['asset'], consent: true, routeKey: 'route' };
+    const event = { type: 'RUN_FINISHED', threadId: 'thread', runId: 'run' };
+    const onEvent = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      new Response(`data: ${JSON.stringify(event)}\n\n`, {
+        headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+      }),
+    );
+
+    await streamAiAssetChat('workspace', body, onEvent);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/workspaces/workspace/ai/tasks/chat/stream',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          'x-csrf-token': 'test-csrf',
+        },
+        body: JSON.stringify(body),
+      }),
+    );
+    expect(onEvent).toHaveBeenCalledWith(event);
+  });
+
+  it('rejects a successful HTTP response with a different media type', async () => {
+    const body = { question: 'Where is this asset?', assetIds: ['asset'], consent: true, routeKey: 'route' };
+    const onEvent = vi.fn();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { proxy: 'fallback' }));
+
+    await expect(streamAiAssetChat('workspace', body, onEvent)).rejects.toMatchObject({
+      code: 'invalid_response',
+    });
+    expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('invokes the unauthorized handler and throws ApiError on 401', async () => {
